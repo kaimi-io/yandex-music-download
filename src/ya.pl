@@ -13,15 +13,13 @@ use constant
     TIMEOUT => 5,
     AGENT => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0',
     YANDEX_BASE => 'http://music.yandex.ru',
-    TRACK_URI_MASK => '/fragment/track/%d/album/%d?prefix=%s',
-    DOWNLOAD_INFO_MASK => '/xml/storage-proxy.xml?p=download-info/%s/2.mp3&nc=%d',
+    MUSIC_INFO_REGEX => qr/var\s+Mu\s+=\s+(.+?);\s+<\/script>/is,
+    DOWNLOAD_INFO_MASK => '/api/v1.5/handlers/api-jsonp.jsx?requestId=2&nc=%d&action=getTrackSrc&p=download-info/%s/2.mp3',
     DOWNLOAD_PATH_MASK => 'http://%s/get-mp3/%s/%s?track-id=%s&from=service-10-track&similarities-experiment=default',
-    PLAYLIST_INFO_MASK => '/get/playlist2.xml?kinds=%d&owner=%s&r=%d',
-    PLAYLIST_TRACK_INFO_MASK => '/get/tracks.xml?tracks=%s',
-    ALBUM_INFO_MASK => '/fragment/album/%d?prefix=%s',
+    PLAYLIST_INFO_MASK => '/users/%s/playlists/%d',
+    ALBUM_INFO_MASK => '/album/%d',
     FILE_SAVE_EXT => '.mp3',
-    ARTIST_TITLE_DELIM => ' - ',
-    FACEGEN => POSIX::strftime('facegen-%Y-%m-%dT00-00-00', localtime)
+    ARTIST_TITLE_DELIM => ' - '
 };
 use constant
 {
@@ -105,17 +103,22 @@ if($opt->album || ($opt->playlist && $opt->kind))
 {
     my @track_list_info;
     
-    if($opt->track && $opt->album)
-    {
-        info(INFO, 'Fetching track info: '.$opt->track.' ['.$opt->album.']');
-        
-        @track_list_info = get_single_track_info($opt->album, $opt->track);
-    }
-    elsif($opt->album)
+    if($opt->album)
     {
         info(INFO, 'Fetching album info: '.$opt->album);
         
         @track_list_info = get_album_tracks_info($opt->album);
+        
+        if($opt->track)
+        {
+            info(INFO, 'Filtering single track: '.$opt->track.' ['.$opt->album.']');
+            @track_list_info = grep
+            (
+                (split(/\./, $_->{dir}))[1] eq $opt->track
+                ,
+                @track_list_info
+            );
+        }
     }
     else
     {
@@ -164,7 +167,6 @@ sub fetch_track
     info(OK, 'Saved track at '.$file_path);
 }
 
-
 sub download_track
 {
     my ($url, $title) = @_;
@@ -181,14 +183,11 @@ sub download_track
     my $file_path = $opt->dir.'/'.$title.FILE_SAVE_EXT;
     if(open(F, '>', $file_path))
     {
-        # Awkward moment
-        undef $\;
+        local $\ = undef;
         
         binmode F;
         print F $request->content;
         close F;
-        
-        $\ = NL;
         
         my $disk_data_size = -s $file_path;
         
@@ -208,27 +207,35 @@ sub get_track_url
 {
     my $storage_dir = shift;
     
-    my $request = $ua->get(YANDEX_BASE.sprintf(DOWNLOAD_INFO_MASK, $storage_dir, time));
+    my $request = $ua->get(YANDEX_BASE.sprintf(DOWNLOAD_INFO_MASK, time, $storage_dir));
     if(!$request->is_success)
     {
         info(DEBUG, 'Request failed in get_track_url');
         return;
     }
     
-    my %fields = (host => '', path => '', ts => '', region => '', s => '');
-    
-    for my $key(keys %fields)
+    my ($json_data) = ($request->as_string =~ /Ya\.Music\.Jsonp\.callback\(['"]\d+['"],\s*(.+?)\);/);
+    if(!$json_data)
     {
-        if($request->as_string =~ /<$key>(.+?)<\/$key>/)
-        {
-            $fields{$key} = $1;
-        }
-        else
-        {
-            info(DEBUG, 'Failed to parse '.$key);
-            return;
-        }
+        info(DEBUG, 'Can\'t parse JSON blob');
+        return;
     }
+    
+    my $json = create_json($json_data);
+    if(!$json)
+    {
+        info(DEBUG, 'Can\'t create json from data');
+        return;
+    }
+    
+    my %fields =
+    (
+        host => $json->[0]->{host},
+        path => $json->[0]->{path},
+        ts => $json->[0]->{ts},
+        region => $json->[0]->{region},
+        s => $json->[0]->{s}
+    );
     
     my $hash = hash(substr($fields{path}, 1) . $fields{s});
     
@@ -239,119 +246,78 @@ sub get_track_url
     return $url;
 }
 
-sub get_single_track_info
-{
-    my ($album_id, $track_id) = @_;
-    
-    my $request = $ua->get(YANDEX_BASE.sprintf(TRACK_URI_MASK, $track_id, $album_id, FACEGEN));
-    if(!$request->is_success)
-    {
-        info(DEBUG, 'Request failed in get_single_track_info');
-        return;
-    }
-    
-    my ($json_data) = ($request->as_string =~ /data-from="track" onclick=["']return (.+?)["']>/);
-    if(!$json_data)
-    {
-        info(DEBUG, 'Can\'t parse JSON blob');
-        return;
-    }
-    
-    HTML::Entities::decode_entities($json_data);
-    
-    my $json;
-    eval
-    {
-        $json = $json_decoder->decode($json_data);
-    };
-    
-    if($@)
-    {
-        info(DEBUG, 'Error decoding json '.$@);
-        return;
-    }
-    
-    return {dir => $json->{storage_dir}, title => $json->{artist}.ARTIST_TITLE_DELIM.$json->{title}};
-}
-
 sub get_album_tracks_info
 {
     my $album_id = shift;
     
-    my $request = $ua->get(YANDEX_BASE.sprintf(ALBUM_INFO_MASK, $album_id, FACEGEN));
+    my $request = $ua->get(YANDEX_BASE.sprintf(ALBUM_INFO_MASK, $album_id));
     if(!$request->is_success)
     {
         info(DEBUG, 'Request failed in get_album_tracks_info');
         return;
-    } 
+    }
     
-    my ($json_data) = ($request->as_string =~ /data-from="album-whole" onclick="return (.+?)"><a/);
+    my ($json_data) = ($request->as_string =~ MUSIC_INFO_REGEX);
     if(!$json_data)
     {
         info(DEBUG, 'Can\'t parse JSON blob');
         return;
     }
     
-    HTML::Entities::decode_entities($json_data);
-    
-    my $json;
-    eval
+    my $json = create_json($json_data);
+    if(!$json)
     {
-        $json = $json_decoder->decode($json_data);
-    };
-    
-    if($@)
-    {
-        info(DEBUG, 'Error decoding json '.$@);
+        info(DEBUG, 'Can\'t create json from data');
         return;
     }
     
-    
-    my $title = $json->{title};
+    my $title = $json->{pageData}->{title};
     if(!$title)
     {
         info(DEBUG, 'Can\'t get album title');
         return;
     }
-    
+
     fix_encoding(\$title);
-    
+
     info(INFO, 'Album title: '.$title);
-    info(INFO, 'Tracks total: '. $json->{track_count});
-    
-    
-    return map { { dir => $_->{storage_dir}, title=> $_->{artist}.ARTIST_TITLE_DELIM.$_->{title} } } @{$json->{tracks}};
+    info(INFO, 'Tracks total: '. $json->{pageData}->{trackCount});
+
+    return map
+    {
+        {
+            dir => $_->{storageDir},
+            title=> $_->{artists}->[0]->{name} . ARTIST_TITLE_DELIM . $_->{title} 
+        }
+    } @{ $json->{pageData}->{volumes}->[0] };
 }
 
 sub get_playlist_tracks_info
 {
     my $playlist_id = shift;
     
-    my $request = $ua->get(YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $playlist_id, $opt->kind, time));
+    my $request = $ua->get(YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $opt->kind, $playlist_id));
     if(!$request->is_success)
     {
         info(DEBUG, 'Request failed in get_playlist_tracks_info');
         return;
     }
     
-    my $json_data = $request->content;
-    
-    HTML::Entities::decode_entities($json_data);
-    
-    my $json;
-    eval
+    my ($json_data) = ($request->as_string =~ MUSIC_INFO_REGEX);
+    if(!$json_data)
     {
-        $json = $json_decoder->decode($json_data);
-    };
-    
-    if($@)
-    {
-        info(DEBUG, 'Error decoding json '.$@);
+        info(DEBUG, 'Can\'t parse JSON blob');
         return;
     }
     
+    my $json = create_json($json_data);
+    if(!$json)
+    {
+        info(DEBUG, 'Can\'t create json from data');
+        return;
+    }
     
-    my $title = $json->{playlists}[0]->{title};
+    my $title = $json->{pageData}->{playlist}->{title};
     if(!$title)
     {
         info(DEBUG, 'Can\'t get playlist title');
@@ -361,19 +327,27 @@ sub get_playlist_tracks_info
     fix_encoding(\$title);
     
     info(INFO, 'Playlist title: '.$title);
-    info(INFO, 'Tracks total: '. scalar @{$json->{playlists}[0]->{tracks}});
+    info(INFO, 'Tracks total: '. $json->{pageData}->{playlist}->{trackCount});
     
-    
-    $request = $ua->get(YANDEX_BASE.sprintf(PLAYLIST_TRACK_INFO_MASK, join(',', @{$json->{playlists}[0]->{tracks}})));
-    if(!$request->is_success)
+    return map
     {
-        info(DEBUG, 'Request failed in get_playlist_tracks_info');
-        return;
-    }
+        {
+            dir => $_->{storageDir},
+            title=> $_->{artists}->[0]->{name} . ARTIST_TITLE_DELIM . $_->{title} 
+        }
+    } @{ $json->{pageData}->{playlist}->{tracks} };
+}
+
+sub create_json
+{
+    my $json_data = shift;
     
+    HTML::Entities::decode_entities($json_data);
+    
+    my $json;
     eval
     {
-        $json = $json_decoder->decode($request->content);
+        $json = $json_decoder->decode($json_data);
     };
     
     if($@)
@@ -382,8 +356,7 @@ sub get_playlist_tracks_info
         return;
     }
     
-    
-    return map { { dir => $_->{storage_dir}, title=> $_->{artist}.ARTIST_TITLE_DELIM.$_->{title} } } @{$json->{tracks}};
+    return $json;
 }
 
 sub fix_encoding
