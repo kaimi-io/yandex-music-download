@@ -94,6 +94,7 @@ if($opt->dir && !-d $opt->dir)
     exit;
 }
 
+my ($whole_file, $total_size);
 my $ua = LWP::UserAgent->new(agent => AGENT, cookie_jar => new HTTP::Cookies, timeout => TIMEOUT);
 my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref;
 $json_decoder->allow_singlequote(1);
@@ -136,6 +137,17 @@ if($opt->album || ($opt->playlist && $opt->kind))
     
     for my $track_info_ref(@track_list_info)
     {
+        if(!$track_info_ref->{title})
+        {
+            info(ERROR, 'Track with non-existent title. Skipping...');
+            next;
+        }
+        if(!$track_info_ref->{dir})
+        {
+            info(ERROR, 'Track with non-existent path (deleted?). Skipping...');
+            next;
+        }
+        
         fetch_track($track_info_ref);
     }
 }
@@ -171,14 +183,23 @@ sub download_track
 {
     my ($url, $title) = @_;
     
-    my $request = $ua->get($url);
+    my $request = $ua->head($url);
     if(!$request->is_success)
     {
-        info(DEBUG, 'Request failed in download_track');
+        info(DEBUG, 'HEAD request failed in download_track');
         return;
     }
     
-    my $web_data_size = $request->headers->{'content-length'};
+    $whole_file = '';
+    $total_size = $request->headers->content_length;
+    info(DEBUG, 'File size from header: '.$total_size);
+    
+    $request = $ua->get($url, ':content_cb' => \&progress);
+    if(!$request->is_success)
+    {
+        info(DEBUG, 'GET request failed in '.(caller(0))[3]);
+        return;
+    }
     
     my $file_path = $opt->dir.'/'.$title.FILE_SAVE_EXT;
     if(open(F, '>', $file_path))
@@ -186,14 +207,14 @@ sub download_track
         local $\ = undef;
         
         binmode F;
-        print F $request->content;
+        print F $whole_file;
         close F;
         
         my $disk_data_size = -s $file_path;
         
-        if($web_data_size && $disk_data_size != $web_data_size)
+        if($total_size && $disk_data_size != $total_size)
         {
-            info(DEBUG, 'Actual file size differs from expected ('.$disk_data_size.'/'.$web_data_size.')');
+            info(DEBUG, 'Actual file size differs from expected ('.$disk_data_size.'/'.$total_size.')');
         }
     
         return $file_path;
@@ -370,6 +391,28 @@ sub info
     my ($type, $msg) = @_;
     
     return if !$opt->debug && $type eq DEBUG;
+    # Actual terminal width detection?
+    $msg = Term::ANSIColor::colored('['.$type.']', $log_colors{$type}) . ' ' . $msg;
+    $msg .= ' ' x (80 - length($msg) - length($\));
     
-    print Term::ANSIColor::colored('['.$type.']', $log_colors{$type}), ' ', $msg;
+    print $msg;
+}
+
+sub progress
+{
+    my ($data, undef, undef) = @_;
+
+    $whole_file .= $data;
+    print progress_bar(length($whole_file), $total_size);
+}
+
+sub progress_bar
+{
+    my ($got, $total, $width, $char) = @_;
+
+    $width ||= 25; $char ||= '=';
+    my $num_width = length $total;
+    sprintf "|%-${width}s| Got %${num_width}s bytes of %s (%.2f%%)\r", 
+        $char x (($width-1) * $got / $total). '>', 
+        $got, $total, 100 * $got / +$total;
 }
