@@ -235,7 +235,7 @@ sub get_track_url
         return;
     }
     
-    my ($json_data) = ($request->as_string =~ /Ya\.Music\.Jsonp\.callback\(['"]\d+['"],\s*(.+?)\);/);
+    my ($json_data) = $request->content;
     if(!$json_data)
     {
         info(DEBUG, 'Can\'t parse JSON blob');
@@ -251,11 +251,11 @@ sub get_track_url
     
     my %fields =
     (
-        host => $json->[0]->{host},
-        path => $json->[0]->{path},
-        ts => $json->[0]->{ts},
-        region => $json->[0]->{region},
-        s => $json->[0]->{s}
+        host => $json->{host},
+        path => $json->{path},
+        ts => $json->{ts},
+        region => $json->{region},
+        s => $json->{s}
     );
     
     my $hash = hash(substr($fields{path}, 1) . $fields{s});
@@ -390,7 +390,12 @@ sub info
 {
     my ($type, $msg) = @_;
     
-    return if !$opt->debug && $type eq DEBUG;
+    if($type eq DEBUG)
+    {
+    	return if !$opt->debug;
+    	# Func, line, msg
+    	$msg = (caller(1))[3] . "(" . (caller(0))[2] . "): " . $msg;
+    }
     # Actual terminal width detection?
     $msg = Term::ANSIColor::colored('['.$type.']', $log_colors{$type}) . ' ' . $msg;
     $msg .= ' ' x (80 - length($msg) - length($\));
