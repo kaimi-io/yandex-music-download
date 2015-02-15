@@ -17,6 +17,8 @@ use constant
     DOWNLOAD_INFO_MASK => '/api/v1.5/handlers/api-jsonp.jsx?requestId=2&nc=%d&action=getTrackSrc&p=download-info/%s/2.mp3',
     DOWNLOAD_PATH_MASK => 'http://%s/get-mp3/%s/%s?track-id=%s&from=service-10-track&similarities-experiment=default',
     PLAYLIST_INFO_MASK => '/users/%s/playlists/%d',
+    PLAYLIST_REQ_PART => '{"userFeed":"old","similarities":"default","genreRadio":"new-ichwill-matrixnet6","recommendedArtists":"ichwill_similar_artists","recommendedTracks":"recommended_tracks_by_artist_from_history","recommendedAlbumsOfFavoriteGenre":"recent","recommendedSimilarArtists":"default","recommendedArtistsWithArtistsFromHistory":"force_recent","adv":"a","loserArtistsWithArtists":"off","ny2015":"no"}',
+    PLAYLIST_FULL_INFO => '/handlers/track-entries.jsx',
     ALBUM_INFO_MASK => '/album/%d',
     FILE_SAVE_EXT => '.mp3',
     ARTIST_TITLE_DELIM => ' - '
@@ -72,6 +74,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
     ['album|a:i',       'album to download'],
     ['track|t:i',       'track to download (album id must be specified)'],
     ['dir|d:s',         'download path (current direcotry will be used by default)', {default => '.'}],
+    ['proxy=s',			'HTTP-proxy (format: 1.2.3.4:8888)'],
     [],
     ['debug',           'print debug info during work'],
     ['help',            'print usage'],
@@ -99,6 +102,10 @@ my $ua = LWP::UserAgent->new(agent => AGENT, cookie_jar => new HTTP::Cookies, ti
 my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref;
 $json_decoder->allow_singlequote(1);
 
+if($opt->proxy)
+{
+	$ua->proxy(['http'], 'http://'.$opt->proxy.'/');
+}
 
 if($opt->album || ($opt->playlist && $opt->kind))
 {
@@ -186,7 +193,7 @@ sub download_track
     my $request = $ua->head($url);
     if(!$request->is_success)
     {
-        info(DEBUG, 'HEAD request failed in download_track');
+        info(DEBUG, 'HEAD request failed');
         return;
     }
     
@@ -231,7 +238,7 @@ sub get_track_url
     my $request = $ua->get(YANDEX_BASE.sprintf(DOWNLOAD_INFO_MASK, time, $storage_dir));
     if(!$request->is_success)
     {
-        info(DEBUG, 'Request failed in get_track_url');
+        info(DEBUG, 'Request failed');
         return;
     }
     
@@ -274,7 +281,7 @@ sub get_album_tracks_info
     my $request = $ua->get(YANDEX_BASE.sprintf(ALBUM_INFO_MASK, $album_id));
     if(!$request->is_success)
     {
-        info(DEBUG, 'Request failed in get_album_tracks_info');
+        info(DEBUG, 'Request failed');
         return;
     }
     
@@ -320,7 +327,7 @@ sub get_playlist_tracks_info
     my $request = $ua->get(YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $opt->kind, $playlist_id));
     if(!$request->is_success)
     {
-        info(DEBUG, 'Request failed in get_playlist_tracks_info');
+        info(DEBUG, 'Request failed');
         return;
     }
     
@@ -349,14 +356,66 @@ sub get_playlist_tracks_info
     
     info(INFO, 'Playlist title: '.$title);
     info(INFO, 'Tracks total: '. $json->{pageData}->{playlist}->{trackCount});
-    
-    return map
+
+    my @tracks_info;
+
+    if($json->{pageData}->{playlist}->{trackIds})
     {
-        {
-            dir => $_->{storageDir},
-            title=> $_->{artists}->[0]->{name} . ARTIST_TITLE_DELIM . $_->{title} 
-        }
-    } @{ $json->{pageData}->{playlist}->{tracks} };
+    	my @playlist_chunks;
+    	my $tracks_ref = $json->{pageData}->{playlist}->{trackIds};
+    	my $sign = $json->{authData}->{user}->{sign};
+
+    	push @playlist_chunks, [splice @{$tracks_ref}, 0, 150] while @{$tracks_ref};
+
+    	for my $chunk(@playlist_chunks)
+    	{
+	    	$request = $ua->post
+	    	(
+	    		YANDEX_BASE.PLAYLIST_FULL_INFO,
+	    		{
+	    			strict => 'true',
+	    			sign => $sign,
+	    			lang => 'ru',
+	    			experiments => PLAYLIST_REQ_PART,
+	    			entries => join ',', @{$chunk}
+	    		}
+			);
+
+			if(!$request->is_success)
+			{
+				info(DEBUG, 'Request failed');
+				return;
+			}
+
+			$json = create_json($request->content);
+		    if(!$json)
+		    {
+		        info(DEBUG, 'Can\'t create json from data');
+		        return;
+		    }
+
+			push @tracks_info,
+				map
+				{
+					{
+						dir => $_->{storageDir},
+						title=> $_->{artists}->[0]->{name} . ARTIST_TITLE_DELIM . $_->{title}
+					}
+				} @{ $json };
+		}
+    }
+    else
+    {
+		@tracks_info = map
+	    {
+	        {
+	            dir => $_->{storageDir},
+	            title=> $_->{artists}->[0]->{name} . ARTIST_TITLE_DELIM . $_->{title} 
+	        }
+	    } @{ $json->{pageData}->{playlist}->{tracks} };
+	}
+
+	return @tracks_info;
 }
 
 sub create_json
