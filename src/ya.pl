@@ -73,11 +73,11 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['kind|k:s',		'playlist kind (eg. ya-playlist, music-blog, music-partners, etc.)'],
 	['album|a:i',		'album to download'],
 	['track|t:i',		'track to download (album id must be specified)'],
-	['dir|d:s',			'download path (current direcotry will be used by default)', {default => '.'}],
-	['proxy=s',			'HTTP-proxy (format: 1.2.3.4:8888)'],
+	['dir|d:s',		'download path (current direcotry will be used by default)', {default => '.'}],
+	['proxy=s',		'HTTP-proxy (format: 1.2.3.4:8888)'],
 	[],
-	['debug',			'print debug info during work'],
-	['help',			'print usage'],
+	['debug',		'print debug info during work'],
+	['help',		'print usage'],
 	[],
 	['Example: '],
 	["\t".basename(__FILE__).' -p 123 -k ya-playlist'],
@@ -104,7 +104,7 @@ $json_decoder->allow_singlequote(1);
 
 if($opt->proxy)
 {
-	$ua->proxy(['http'], 'http://'.$opt->proxy.'/');
+	$ua->proxy(['http', 'https'], 'http://'.$opt->proxy.'/');
 }
 
 if($opt->album || ($opt->playlist && $opt->kind))
@@ -114,9 +114,9 @@ if($opt->album || ($opt->playlist && $opt->kind))
 	if($opt->album)
 	{
 		info(INFO, 'Fetching album info: '.$opt->album);
-	
+
 		@track_list_info = get_album_tracks_info($opt->album);
-	
+
 		if($opt->track)
 		{
 			info(INFO, 'Filtering single track: '.$opt->track.' ['.$opt->album.']');
@@ -311,13 +311,19 @@ sub get_album_tracks_info
 	info(INFO, 'Album title: '.$title);
 	info(INFO, 'Tracks total: '. $json->{pageData}->{trackCount});
 
+	my @volumes = ();
+	for my $vol(@{$json->{pageData}->{volumes}})
+	{
+		push @volumes, @{$vol};
+	}
+
 	return map
 	{
 		{
 			dir => $_->{storageDir},
 			title=> $_->{artists}->[0]->{name} . ARTIST_TITLE_DELIM . $_->{title} 
 		}
-	} @{ $json->{pageData}->{volumes}->[0] };
+	} @volumes;
 }
 
 sub get_playlist_tracks_info
