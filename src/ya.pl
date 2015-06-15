@@ -21,7 +21,10 @@ use constant
 	PLAYLIST_FULL_INFO => '/handlers/track-entries.jsx',
 	ALBUM_INFO_MASK => '/album/%d',
 	FILE_SAVE_EXT => '.mp3',
-	ARTIST_TITLE_DELIM => ' - '
+	ARTIST_TITLE_DELIM => ' - ',
+	COVER_RESOLUTION => '400x400',
+	GENERIC_COLLECTION => "\x{441}\x{431}\x{43e}\x{440}\x{43d}\x{438}\x{43a}",
+	GENERIC_TITLE => 'Various Artists'
 };
 use constant
 {
@@ -43,7 +46,7 @@ my %req_modules =
 (
 	NIX => [],
 	WIN => [ qw/Win32::Console::ANSI/ ],
-	ALL => [ qw/JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
+	ALL => [ qw/MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
 );
 
 $\ = NL;
@@ -62,7 +65,7 @@ for(@{$req_modules{ALL}}, IS_WIN ? @{$req_modules{WIN}} : @{$req_modules{NIX}})
 
 if(@missing_modules)
 {
-	print 'Please, install this modules: '.join ', ', @missing_modules;
+	print 'Please, install this modules: ' . join ', ', @missing_modules;
 	exit;
 }
 
@@ -80,9 +83,9 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['help',		'print usage'],
 	[],
 	['Example: '],
-	["\t".basename(__FILE__).' -p 123 -k ya-playlist'],
-	["\t".basename(__FILE__).' -a 123'],
-	["\t".basename(__FILE__).' -a 123 -t 321']
+	["\t".basename(__FILE__) . ' -p 123 -k ya-playlist'],
+	["\t".basename(__FILE__) . ' -a 123'],
+	["\t".basename(__FILE__) . ' -a 123 -t 321']
 );
 
 if( $opt->help || ( !($opt->track && $opt->album) && !$opt->album && !($opt->playlist && $opt->kind) )  )
@@ -104,7 +107,7 @@ $json_decoder->allow_singlequote(1);
 
 if($opt->proxy)
 {
-	$ua->proxy(['http', 'https'], 'http://'.$opt->proxy.'/');
+	$ua->proxy(['http', 'https'], 'http://' . $opt->proxy . '/');
 }
 
 if($opt->album || ($opt->playlist && $opt->kind))
@@ -113,13 +116,13 @@ if($opt->album || ($opt->playlist && $opt->kind))
 
 	if($opt->album)
 	{
-		info(INFO, 'Fetching album info: '.$opt->album);
+		info(INFO, 'Fetching album info: ' . $opt->album);
 
 		@track_list_info = get_album_tracks_info($opt->album);
 
 		if($opt->track)
 		{
-			info(INFO, 'Filtering single track: '.$opt->track.' ['.$opt->album.']');
+			info(INFO, 'Filtering single track: ' . $opt->track . ' [' . $opt->album . ']');
 			@track_list_info = grep
 			(
 				(split(/\./, $_->{dir}))[1] eq $opt->track
@@ -130,7 +133,7 @@ if($opt->album || ($opt->playlist && $opt->kind))
 	}
 	else
 	{
-		info(INFO, 'Fetching playlist info: '.$opt->playlist.' ['.$opt->kind.']');
+		info(INFO, 'Fetching playlist info: ' . $opt->playlist . ' [' . $opt->kind . ']');
 	
 		@track_list_info = get_playlist_tracks_info($opt->playlist);
 	}
@@ -184,6 +187,15 @@ sub fetch_track
 	}
 
 	info(OK, 'Saved track at '.$file_path);
+
+	if(write_mp3_tags($file_path, $track_info_ref->{mp3tags}))
+	{
+		info(INFO, 'MP3 tags added for ' . $file_path);
+	}
+	else
+	{
+		info(ERROR, 'Failed to add MP3 tags for ' . $file_path);
+	}
 }
 
 sub download_track
@@ -227,7 +239,7 @@ sub download_track
 		return $file_path;
 	}
 
-	info(DEBUG, 'Failed to open file '.$file_path);
+	info(DEBUG, 'Failed to open file ' . $file_path);
 	return;
 }
 
@@ -295,7 +307,7 @@ sub get_album_tracks_info
 	my $json = create_json($json_data);
 	if(!$json)
 	{
-		info(DEBUG, 'Can\'t create json from data');
+		info(DEBUG, 'Can\'t create json from data: ' . $@);
 		return;
 	}
 
@@ -308,8 +320,8 @@ sub get_album_tracks_info
 
 	fix_encoding(\$title);
 
-	info(INFO, 'Album title: '.$title);
-	info(INFO, 'Tracks total: '. $json->{pageData}->{trackCount});
+	info(INFO, 'Album title: ' . $title);
+	info(INFO, 'Tracks total: ' . $json->{pageData}->{trackCount});
 
 	my @volumes = ();
 	for my $vol(@{$json->{pageData}->{volumes}})
@@ -319,10 +331,7 @@ sub get_album_tracks_info
 
 	return map
 	{
-		{
-			dir => $_->{storageDir},
-			title=> $_->{artists}->[0]->{name} . ARTIST_TITLE_DELIM . $_->{title} 
-		}
+		create_track_entry($_)
 	} @volumes;
 }
 
@@ -347,7 +356,7 @@ sub get_playlist_tracks_info
 	my $json = create_json($json_data);
 	if(!$json)
 	{
-		info(DEBUG, 'Can\'t create json from data');
+		info(DEBUG, 'Can\'t create json from data: ' . $@);
 		return;
 	}
 
@@ -403,10 +412,7 @@ sub get_playlist_tracks_info
 			push @tracks_info,
 				map
 				{
-					{
-						dir => $_->{storageDir},
-						title=> $_->{artists}->[0]->{name} . ARTIST_TITLE_DELIM . $_->{title}
-					}
+					create_track_entry($_)
 				} @{ $json };
 		}
 	}
@@ -414,21 +420,104 @@ sub get_playlist_tracks_info
 	{
 		@tracks_info = map
 		{
-			{
-				dir => $_->{storageDir},
-				title=> $_->{artists}->[0]->{name} . ARTIST_TITLE_DELIM . $_->{title} 
-			}
+			create_track_entry($_)
 		} @{ $json->{pageData}->{playlist}->{tracks} };
 	}
 
 	return @tracks_info;
 }
 
+sub create_track_entry
+{
+	my $track_info = shift;
+
+	# Multiple covers possible?
+	my $album_cover = fetch_album_cover($track_info->{albums}->[0]->{artists}->[0]->{cover}->{uri});
+
+	# Better detection algo?
+	my $is_various =
+		scalar @{$track_info->{artists}} > 1
+		||
+		$track_info->{albums}->[0]->{artists}->[0]->{name} eq GENERIC_COLLECTION
+	;
+
+	my $song_artist = join ', ', map { $_->{name} } @{$track_info->{artists}};
+
+	# TALB - album title; TPE2 - album artist; APIC - album picture; TYER - year;
+	# TIT2 - song title; TPE1 - song artist
+	return
+	{
+		# Download path part
+		dir => $_->{storageDir},
+		# MP3 tags
+		mp3tags => 
+		{
+			TALB => $track_info->{albums}->[0]->{title},
+			TPE2 => $is_various ? GENERIC_TITLE : $track_info->{albums}->[0]->{artists}->[0]->{name},
+			APIC => [chr(0x0), 'image/jpg', chr(0x0), 'Cover (front)', $album_cover],
+			TYER => $track_info->{albums}->[0]->{year},
+			TIT2 => $track_info->{title},
+			TPE1 => $song_artist
+		},
+		# Save As file name
+		title=> $song_artist . ARTIST_TITLE_DELIM . $track_info->{title} 
+	};
+}
+
+sub write_mp3_tags
+{
+	my ($file_path, $mp3tags) = @_;
+
+	my $mp3 = MP3::Tag->new($file_path);
+	if(!$mp3)
+	{
+		info(DEBUG, 'Can\'t create MP3::Tag object: ' . $@);
+		return;
+	}
+
+	$mp3->new_tag('ID3v2');
+
+	while(my ($frame, $data) = each %{$mp3tags})
+	{
+		info(DEBUG, 'add_frame: ' . $frame . '=' . substr $data, 0, 16);
+		# Skip empty
+		if($data)
+		{
+			$mp3->{ID3v2}->add_frame
+			(
+				$frame,
+				ref $data eq ref [] ? @{$data} : $data
+			);
+		}
+	}
+
+	$mp3->{ID3v2}->write_tag;
+	$mp3->close();
+
+	return 1;
+}
+
+sub fetch_album_cover
+{
+	my $cover_url = shift;
+
+	# Normalize url
+	$cover_url =~ s/%%/${\(COVER_RESOLUTION)}/;
+	$cover_url = 'https://' . $cover_url;
+
+	my $request = $ua->get($cover_url);
+	if(!$request->is_success)
+	{
+		info(DEBUG, 'Request failed');
+		return;
+	}
+
+	return $request->content;
+}
+
 sub create_json
 {
 	my $json_data = shift;
-
-	HTML::Entities::decode_entities($json_data);
 
 	my $json;
 	eval
@@ -438,9 +527,11 @@ sub create_json
 
 	if($@)
 	{
-		info(DEBUG, 'Error decoding json '.$@);
+		info(DEBUG, 'Error decoding json ' . $@);
 		return;
 	}
+
+	HTML::Entities::decode_entities($json_data);
 
 	return $json;
 }
