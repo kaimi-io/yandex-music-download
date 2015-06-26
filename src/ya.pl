@@ -24,7 +24,7 @@ use constant
 	ARTIST_TITLE_DELIM => ' - ',
 	COVER_RESOLUTION => '400x400',
 	GENERIC_COLLECTION => "\x{441}\x{431}\x{43e}\x{440}\x{43d}\x{438}\x{43a}",
-	GENERIC_TITLE => 'Various Artists'
+	GENERIC_TITLE => 'Various Artists',
 };
 use constant
 {
@@ -187,6 +187,8 @@ sub fetch_track
 	}
 
 	info(OK, 'Saved track at '.$file_path);
+
+	fetch_album_cover($track_info_ref->{mp3tags});
 
 	if(write_mp3_tags($file_path, $track_info_ref->{mp3tags}))
 	{
@@ -431,19 +433,32 @@ sub create_track_entry
 {
 	my $track_info = shift;
 
-	# Multiple covers possible?
-	my $album_cover = fetch_album_cover($track_info->{albums}->[0]->{artists}->[0]->{cover}->{uri});
 
 	# Better detection algo?
+	my $is_part_of_album = scalar @{$track_info->{albums}} != 0;
 	my $is_various =
 		scalar @{$track_info->{artists}} > 1
 		||
-		$track_info->{albums}->[0]->{artists}->[0]->{name} eq GENERIC_COLLECTION
+		($is_part_of_album && $track_info->{albums}->[0]->{artists}->[0]->{name} eq GENERIC_COLLECTION)
 	;
 
-	my $song_artist = join ', ', map { $_->{name} } @{$track_info->{artists}};
+	my ($talb, $tpe2, $apic, $tyer, $tit2, $tpe1);
 
-	# TALB - album title; TPE2 - album artist; APIC - album picture; TYER - year;
+	$tpe1 = join ', ', map { $_->{name} } @{$track_info->{artists}};
+	$tit2 = $track_info->{title};
+
+	# For deleted tracks
+	if($is_part_of_album)
+	{
+		$talb = $track_info->{albums}->[0]->{title};
+		$tpe2 = $is_various ? GENERIC_TITLE : $track_info->{albums}->[0]->{artists}->[0]->{name};
+		# 'Dummy' cover for post-process
+		$apic = $track_info->{albums}->[0]->{artists}->[0]->{cover}->{uri};
+		$tyer = $track_info->{albums}->[0]->{year};
+	}
+
+	# TALB - album title; TPE2 - album artist;
+	# APIC - album picture; TYER - year;
 	# TIT2 - song title; TPE1 - song artist
 	return
 	{
@@ -452,15 +467,15 @@ sub create_track_entry
 		# MP3 tags
 		mp3tags => 
 		{
-			TALB => $track_info->{albums}->[0]->{title},
-			TPE2 => $is_various ? GENERIC_TITLE : $track_info->{albums}->[0]->{artists}->[0]->{name},
-			APIC => [chr(0x0), 'image/jpg', chr(0x0), 'Cover (front)', $album_cover],
-			TYER => $track_info->{albums}->[0]->{year},
-			TIT2 => $track_info->{title},
-			TPE1 => $song_artist
+			TALB => $talb,
+			TPE2 => $tpe2,
+			APIC => $apic,
+			TYER => $tyer,
+			TIT2 => $tit2,
+			TPE1 => $tpe1
 		},
 		# Save As file name
-		title=> $song_artist . ARTIST_TITLE_DELIM . $track_info->{title} 
+		title => $tpe1 . ARTIST_TITLE_DELIM . $tit2 
 	};
 }
 
@@ -499,20 +514,25 @@ sub write_mp3_tags
 
 sub fetch_album_cover
 {
-	my $cover_url = shift;
+	my $mp3tags = shift;
+
+	my $cover_url = $mp3tags->{APIC};
 
 	# Normalize url
 	$cover_url =~ s/%%/${\(COVER_RESOLUTION)}/;
 	$cover_url = 'https://' . $cover_url;
 
+	info(DEBUG, 'Cover url: ' . $cover_url);
+
 	my $request = $ua->get($cover_url);
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
+		undef $mp3tags->{APIC};
 		return;
 	}
 
-	return $request->content;
+	$mp3tags->{APIC} = [chr(0x0), 'image/jpg', chr(0x0), 'Cover (front)', $request->content];
 }
 
 sub create_json
