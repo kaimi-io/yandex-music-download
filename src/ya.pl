@@ -1,6 +1,8 @@
+use utf8;
 use strict;
 use warnings;
-use Encode qw/from_to/;
+use Encode qw/from_to decode/;
+use Encode::Guess;
 use File::Basename;
 use POSIX qw/strftime/;
 use YaHash;
@@ -50,6 +52,7 @@ my %req_modules =
 );
 
 $\ = NL;
+binmode STDOUT, ':' . TARGET_ENC;
 
 my @missing_modules;
 for(@{$req_modules{ALL}}, IS_WIN ? @{$req_modules{WIN}} : @{$req_modules{NIX}})
@@ -78,9 +81,14 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['track|t:i',		'track to download (album id must be specified)'],
 	['dir|d:s',		'download path (current direcotry will be used by default)', {default => '.'}],
 	['proxy=s',		'HTTP-proxy (format: 1.2.3.4:8888)'],
+	['exclude=s',		'skip tracks specified in file'],
+	['include=s',		'filter tracks specified in file'],
 	[],
 	['debug',		'print debug info during work'],
 	['help',		'print usage'],
+	[],
+	['--include option presume \'only\' prefix'],
+	['--include and --exclude options use weak match i.e. ~/$term/'],
 	[],
 	['Example: '],
 	["\t".basename(__FILE__) . ' -p 123 -k ya-playlist'],
@@ -102,12 +110,23 @@ if($opt->dir && !-d $opt->dir)
 
 my ($whole_file, $total_size);
 my $ua = LWP::UserAgent->new(agent => AGENT, cookie_jar => new HTTP::Cookies, timeout => TIMEOUT);
-my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref;
-$json_decoder->allow_singlequote(1);
+my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
+my @exclude = ();
+my @include = ();
 
 if($opt->proxy)
 {
 	$ua->proxy(['http', 'https'], 'http://' . $opt->proxy . '/');
+}
+
+if($opt->exclude)
+{
+	@exclude = read_file($opt->exclude);
+}
+
+if($opt->include)
+{
+	@include = read_file($opt->include);
 }
 
 if($opt->album || ($opt->playlist && $opt->kind))
@@ -147,6 +166,37 @@ if($opt->album || ($opt->playlist && $opt->kind))
 
 	for my $track_info_ref(@track_list_info)
 	{
+		my $skip = 0;
+		for my $title(@exclude)
+		{
+			if($track_info_ref->{title} =~ /\Q$title\E/)
+			{
+				$skip = 1;
+				last;
+			}
+		}
+		if($skip)
+		{
+			info(INFO, 'Skipping: ' . $track_info_ref->{title});
+			next;
+		}
+
+		$skip = 1;
+		for my $title(@include)
+		{
+			if($track_info_ref->{title} =~ /\Q$title\E/)
+			{
+				$skip = 0;
+				last;
+			}
+		}
+		if($skip && $opt->include)
+		{
+			info(INFO, 'Skipping: ' . $track_info_ref->{title});
+			next;
+		}
+
+
 		if(!$track_info_ref->{title})
 		{
 			info(ERROR, 'Track with non-existent title. Skipping...');
@@ -160,13 +210,15 @@ if($opt->album || ($opt->playlist && $opt->kind))
 	
 		fetch_track($track_info_ref);
 	}
+
+	info(OK, 'Done!');
 }
 
 sub fetch_track
 {
 	my $track_info_ref = shift;
 
-	fix_encoding(\$track_info_ref->{title});
+	#fix_encoding(\$track_info_ref->{title});
 	$track_info_ref->{title} =~ s/\s+$//;
 	$track_info_ref->{title} =~ s/[\\\/:"*?<>|]+/-/g;
 
@@ -223,13 +275,13 @@ sub download_track
 	}
 
 	my $file_path = $opt->dir.'/'.$title.FILE_SAVE_EXT;
-	if(open(F, '>', $file_path))
+	if(open(my $fh, '>', $file_path))
 	{
 		local $\ = undef;
 	
-		binmode F;
-		print F $whole_file;
-		close F;
+		binmode $fh;
+		print $fh $whole_file;
+		close $fh;
 	
 		my $disk_data_size = -s $file_path;
 	
@@ -320,7 +372,7 @@ sub get_album_tracks_info
 		return;
 	}
 
-	fix_encoding(\$title);
+	#fix_encoding(\$title);
 
 	info(INFO, 'Album title: ' . $title);
 	info(INFO, 'Tracks total: ' . $json->{pageData}->{trackCount});
@@ -369,7 +421,7 @@ sub get_playlist_tracks_info
 		return;
 	}
 
-	fix_encoding(\$title);
+	#fix_encoding(\$title);
 
 	info(INFO, 'Playlist title: '.$title);
 	info(INFO, 'Tracks total: '. $json->{pageData}->{playlist}->{trackCount});
@@ -453,7 +505,7 @@ sub create_track_entry
 		$talb = $track_info->{albums}->[0]->{title};
 		$tpe2 = $is_various ? GENERIC_TITLE : $track_info->{albums}->[0]->{artists}->[0]->{name};
 		# 'Dummy' cover for post-process
-		$apic = $track_info->{albums}->[0]->{artists}->[0]->{cover}->{uri};
+		$apic = $track_info->{albums}->[0]->{coverUri};
 		$tyer = $track_info->{albums}->[0]->{year};
 	}
 
@@ -517,6 +569,11 @@ sub fetch_album_cover
 	my $mp3tags = shift;
 
 	my $cover_url = $mp3tags->{APIC};
+	if(!$cover_url)
+	{
+		info(DEBUG, 'Empty cover url');
+		return;
+	}
 
 	# Normalize url
 	$cover_url =~ s/%%/${\(COVER_RESOLUTION)}/;
@@ -596,4 +653,35 @@ sub progress_bar
 	sprintf "|%-${width}s| Got %${num_width}s bytes of %s (%.2f%%)\r", 
 		$char x (($width-1) * $got / $total). '>', 
 		$got, $total, 100 * $got / +$total;
+}
+
+sub read_file
+{
+	my $filename = shift;
+
+	if(open(my $fh, '<', $filename))
+	{
+		binmode $fh;
+		chomp(my @lines = <$fh>);
+		close $fh;
+
+		# Should I just drop this stuff and demand only utf8?
+		my $blob = join '', @lines;
+		my $decoder = Encode::Guess->guess($blob, 'utf8');
+		$decoder = Encode::Guess->guess($blob, 'cp1251') unless ref $decoder;
+
+		if(!ref $decoder)
+		{
+			info(ERROR, 'Can\'t detect ' . $filename . ' internal encoding');
+			return;
+		}
+
+		@lines = map($decoder->decode($_), @lines);
+
+		return @lines;
+	}
+
+	info(ERROR, 'Failed to open file ' . $opt->ignore);
+
+	return;
 }
