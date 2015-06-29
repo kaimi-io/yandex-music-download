@@ -17,14 +17,13 @@ ya.pl [-adkpt] [long options...]
 	                  default)
 	--proxy           HTTP-proxy (format: 1.2.3.4:8888)
 	--exclude         skip tracks specified in file
-	--include         filter tracks specified in file
-	                
+	--include         download only tracks specified in file
+
 	--debug           print debug info during work
 	--help            print usage
-	                
-	--include option presume 'only' prefix
+
 	--include and --exclude options use weak match i.e. ~/$term/
-	                
+
 	Example:        
 		ya.pl -p 123 -k ya-playlist
 		ya.pl -a 123   
