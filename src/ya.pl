@@ -47,12 +47,12 @@ my %log_colors =
 my %req_modules = 
 (
 	NIX => [],
-	WIN => [ qw/Win32::Console::ANSI/ ],
-	ALL => [ qw/MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
+	WIN => [ qw/Win32::Console::ANSI Win32API::File/ ],
+	ALL => [ qw/File::Copy File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
 );
 
 $\ = NL;
-binmode STDOUT, ':' . TARGET_ENC;
+binmode STDOUT, ':encoding('.TARGET_ENC.')';
 
 my @missing_modules;
 for(@{$req_modules{ALL}}, IS_WIN ? @{$req_modules{WIN}} : @{$req_modules{NIX}})
@@ -152,7 +152,7 @@ if($opt->album || ($opt->playlist && $opt->kind))
 	else
 	{
 		info(INFO, 'Fetching playlist info: ' . $opt->playlist . ' [' . $opt->kind . ']');
-	
+
 		@track_list_info = get_playlist_tracks_info($opt->playlist);
 	}
 
@@ -206,7 +206,7 @@ if($opt->album || ($opt->playlist && $opt->kind))
 			info(ERROR, 'Track with non-existent path (deleted?). Skipping...');
 			next;
 		}
-	
+
 		fetch_track($track_info_ref);
 	}
 
@@ -230,14 +230,14 @@ sub fetch_track
 		return;
 	}
 
-	my $file_path = download_track($track_url, $track_info_ref->{title});
+	my $file_path = download_track($track_url);
 	if(!$file_path)
 	{
 		info(ERROR, 'Failed to download track');
 		return;
 	}
 
-	info(OK, 'Saved track at '.$file_path);
+	info(OK, 'Temporary saved track at '.$file_path);
 
 	fetch_album_cover($track_info_ref->{mp3tags});
 
@@ -249,11 +249,21 @@ sub fetch_track
 	{
 		info(ERROR, 'Failed to add MP3 tags for ' . $file_path);
 	}
+
+	my $target_path = $opt->dir . '/' . $track_info_ref->{title} . FILE_SAVE_EXT;
+	if(rename_track($file_path, $target_path))
+	{
+		info(INFO, $file_path . ' -> ' . $target_path);
+	}
+	else
+	{
+		info(ERROR, $file_path . ' -> ' . $target_path);
+	}
 }
 
 sub download_track
 {
-	my ($url, $title) = @_;
+	my ($url) = @_;
 
 	my $request = $ua->head($url);
 	if(!$request->is_success)
@@ -264,7 +274,7 @@ sub download_track
 
 	$whole_file = '';
 	$total_size = $request->headers->content_length;
-	info(DEBUG, 'File size from header: '.$total_size);
+	info(DEBUG, 'File size from header: ' . $total_size);
 
 	$request = $ua->get($url, ':content_cb' => \&progress);
 	if(!$request->is_success)
@@ -273,27 +283,26 @@ sub download_track
 		return;
 	}
 
-	my $file_path = $opt->dir.'/'.$title.FILE_SAVE_EXT;
-	if(open(my $fh, '>', $file_path))
+	my ($file_handle, $file_path) = File::Temp::tempfile(DIR => $opt->dir);
+	return unless $file_handle;
+
+	binmode $file_handle;
+	# autoflush
+	select((select($file_handle),$|=1)[0]);
 	{
 		local $\ = undef;
-	
-		binmode $fh;
-		print $fh $whole_file;
-		close $fh;
-	
-		my $disk_data_size = -s $file_path;
-	
-		if($total_size && $disk_data_size != $total_size)
-		{
-			info(DEBUG, 'Actual file size differs from expected ('.$disk_data_size.'/'.$total_size.')');
-		}
-
-		return $file_path;
+		print $file_handle $whole_file;
 	}
 
-	info(DEBUG, 'Failed to open file ' . $file_path);
-	return;
+	my $disk_data_size = (stat($file_handle))[7];
+	close $file_handle;
+
+	if($total_size && $disk_data_size != $total_size)
+	{
+		info(DEBUG, 'Actual file size differs from expected ('.$disk_data_size.'/'.$total_size.')');
+	}
+
+	return $file_path;
 }
 
 sub get_track_url
@@ -334,7 +343,7 @@ sub get_track_url
 
 	my $url = sprintf(DOWNLOAD_PATH_MASK, $fields{host}, $hash, $fields{ts}.$fields{path}, (split /\./, $storage_dir)[1]);
 
-	info(DEBUG, 'Track url: '.$url);
+	info(DEBUG, 'Track url: ' . $url);
 
 	return $url;
 }
@@ -422,8 +431,8 @@ sub get_playlist_tracks_info
 
 	#fix_encoding(\$title);
 
-	info(INFO, 'Playlist title: '.$title);
-	info(INFO, 'Tracks total: '. $json->{pageData}->{playlist}->{trackCount});
+	info(INFO, 'Playlist title: ' . $title);
+	info(INFO, 'Tracks total: ' . $json->{pageData}->{playlist}->{trackCount});
 
 	my @tracks_info;
 
@@ -589,6 +598,79 @@ sub fetch_album_cover
 	}
 
 	$mp3tags->{APIC} = [chr(0x0), 'image/jpg', chr(0x0), 'Cover (front)', $request->content];
+}
+
+sub rename_track
+{
+	my ($src_path, $dst_path) = @_;
+
+	my ($src_fh, $dst_fh, $is_open_success) = (undef, undef, 1);
+
+	for(;;)
+	{
+		if(!$is_open_success)
+		{
+			close $src_fh if $src_fh;
+			close $dst_fh if $dst_fh;
+			unlink $src_path if -e $src_path;
+
+			last;
+		}
+
+		$is_open_success = open($src_fh, '<', $src_path);
+		if(!$is_open_success)
+		{
+			info(DEBUG, 'Can\'t open src_path: ' . $src_path);
+			redo;
+		}
+
+		if(IS_WIN)
+		{
+			my $unicode_path = Encode::encode('UTF-16LE', $dst_path);
+			Encode::_utf8_off($unicode_path);
+			$unicode_path .= "\x00\x00";
+			# GENERIC_WRITE, OPEN_ALWAYS
+			my $native_handle = Win32API::File::CreateFileW($unicode_path, 0x40000000, 0, [], 2, 0, 0);
+			# ERROR_ALREADY_EXISTS
+			if($^E && $^E != 183)
+			{
+				info(DEBUG, 'CreateFileW failed with: ' . $^E);
+				redo;
+			}
+
+			$is_open_success = Win32API::File::OsFHandleOpen($dst_fh = IO::Handle->new(), $native_handle, 'w');
+			if(!$is_open_success)
+			{
+				info(DEBUG, 'OsFHandleOpen failed with: ' . $!);
+				redo;
+			}
+		}
+		else
+		{
+			$is_open_success = open($dst_fh, '>', $dst_path);
+			if(!$is_open_success)
+			{
+				info(DEBUG, 'Can\'t open dst_path: ' . $dst_path);
+				redo;
+			}
+		}
+
+		if(!File::Copy::copy($src_fh, $dst_fh))
+		{
+			$is_open_success = 0;
+			info(DEBUG, 'File::Copy::copy failed with: ' . $!);
+			redo;
+		}
+
+		close $src_fh;
+		close $dst_fh;
+
+		unlink $src_path;
+
+		return 1;
+	}
+
+	return 0;
 }
 
 sub create_json
