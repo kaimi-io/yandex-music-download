@@ -107,6 +107,7 @@ if($opt->dir && !-d $opt->dir)
 	exit;
 }
 
+MP3::Tag->config('id3v23_unsync', 0);
 my ($whole_file, $total_size);
 my $ua = LWP::UserAgent->new(agent => AGENT, cookie_jar => new HTTP::Cookies, timeout => TIMEOUT);
 my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
@@ -710,9 +711,10 @@ sub info
 		# Func, line, msg
 		$msg = (caller(1))[3] . "(" . (caller(0))[2] . "): " . $msg;
 	}
-	# Actual terminal width detection?
+
 	$msg = Term::ANSIColor::colored('['.$type.']', $log_colors{$type}) . ' ' . $msg;
-	$msg .= ' ' x (80 - length($msg) - length($\));
+	# Actual terminal width detection?
+	$msg = sprintf('%-80s', $msg);
 
 	print $msg;
 }
