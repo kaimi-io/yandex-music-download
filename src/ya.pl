@@ -5,7 +5,6 @@ use Encode qw/from_to decode/;
 use Encode::Guess;
 use File::Basename;
 use POSIX qw/strftime/;
-use YaHash;
 
 use constant IS_WIN => $^O eq 'MSWin32';
 use constant
@@ -15,6 +14,7 @@ use constant
 	TIMEOUT => 5,
 	AGENT => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0',
 	YANDEX_BASE => 'https://music.yandex.ru',
+	MD5_SALT => 'XGRlBW9FXlekgbPrRHuSiA',
 	MUSIC_INFO_REGEX => qr/var\s+Mu\s+=\s+(.+?);\s+<\/script>/is,
 	DOWNLOAD_INFO_MASK => '/api/v1.5/handlers/api-jsonp.jsx?requestId=2&nc=%d&action=getTrackSrc&p=download-info/%s/2.mp3',
 	DOWNLOAD_PATH_MASK => 'http://%s/get-mp3/%s/%s?track-id=%s&from=service-10-track&similarities-experiment=default',
@@ -48,7 +48,7 @@ my %req_modules =
 (
 	NIX => [],
 	WIN => [ qw/Win32::Console::ANSI Win32API::File/ ],
-	ALL => [ qw/File::Copy File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
+	ALL => [ qw/Digest::MD5 File::Copy File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
 );
 
 $\ = NL;
@@ -340,8 +340,7 @@ sub get_track_url
 		s => $json->{s}
 	);
 
-	my $hash = hash(substr($fields{path}, 1) . $fields{s});
-
+	my $hash = Digest::MD5::md5_hex(MD5_SALT . substr($fields{path}, 1) . $fields{s});
 	my $url = sprintf(DOWNLOAD_PATH_MASK, $fields{host}, $hash, $fields{ts}.$fields{path}, (split /\./, $storage_dir)[1]);
 
 	info(DEBUG, 'Track url: ' . $url);
