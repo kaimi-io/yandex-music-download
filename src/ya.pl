@@ -9,13 +9,12 @@ use POSIX qw/strftime/;
 use constant IS_WIN => $^O eq 'MSWin32';
 use constant
 {
-	NL => IS_WIN ? "\015\012" : "\012",
-	TARGET_ENC => IS_WIN ? 'cp1251' : 'utf8',
+	NL => IS_WIN ? "\015" : "\012",
 	TIMEOUT => 5,
 	AGENT => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0',
 	YANDEX_BASE => 'https://music.yandex.ru',
 	MD5_SALT => 'XGRlBW9FXlekgbPrRHuSiA',
-	MUSIC_INFO_REGEX => qr/var\s+Mu\s+=\s+(.+?);\s+<\/script>/is,
+	MUSIC_INFO_REGEX => qr{var\s+Mu\s+=\s+(.+?);\s+</script>}is,
 	DOWNLOAD_INFO_MASK => '/api/v1.5/handlers/api-jsonp.jsx?requestId=2&nc=%d&action=getTrackSrc&p=download-info/%s/2.mp3',
 	DOWNLOAD_PATH_MASK => 'http://%s/get-mp3/%s/%s?track-id=%s&from=service-10-track&similarities-experiment=default',
 	PLAYLIST_INFO_MASK => '/users/%s/playlists/%d',
@@ -27,6 +26,9 @@ use constant
 	COVER_RESOLUTION => '400x400',
 	GENERIC_COLLECTION => "\x{441}\x{431}\x{43e}\x{440}\x{43d}\x{438}\x{43a}",
 	GENERIC_TITLE => 'Various Artists',
+	URL_ALBUM_REGEX => qr{music\.yandex\.ru/album/(\d+)}is,
+	URL_TRACK_REGEX => qr{music\.yandex\.ru/album/(\d+)/track/(\d+)}is,
+	URL_PLAYLIST_REGEX => qr{music\.yandex\.ru/users/(.+?)/playlists/(\d+)}is
 };
 use constant
 {
@@ -35,29 +37,54 @@ use constant
 	INFO => 'INFO',
 	OK => 'OK'
 };
+use constant
+{
+	WIN_UTF8_CODEPAGE => 65001,
+	STD_OUTPUT_HANDLE => 0xFFFFFFF5,
+	FG_BLUE => 1,
+	FG_GREEN => 2,
+	FG_RED => 4,
+	BG_WHITE => 112
+};
 
 my %log_colors = 
 (
-	&DEBUG => 'red on_white',
-	&ERROR => 'red',
-	&INFO => 'blue on_white',
-	&OK => 'green on_white'
+	&DEBUG => 
+	{
+		nix => 'red on_white',
+		win => FG_RED | BG_WHITE
+	},
+	&ERROR => 
+	{
+		nix => 'red',
+		win => FG_RED
+	},
+	&INFO => 
+	{
+		nix => 'blue on_white',
+		win => FG_BLUE | BG_WHITE
+	},
+	&OK =>
+	{
+		nix => 'green on_white',
+		win => FG_GREEN | BG_WHITE
+	}
 );
 
 my %req_modules = 
 (
 	NIX => [],
-	WIN => [ qw/Win32::Console::ANSI Win32API::File/ ],
+	WIN => [ qw/Win32API::File Win32::Console/ ],
 	ALL => [ qw/Digest::MD5 File::Copy File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
 );
 
 $\ = NL;
-binmode STDOUT, ':encoding('.TARGET_ENC.')';
 
 my @missing_modules;
 for(@{$req_modules{ALL}}, IS_WIN ? @{$req_modules{WIN}} : @{$req_modules{NIX}})
 {
-	eval "require $_";
+	# Suppress MP3::Tag deprecated regex and other warnings
+	eval "local \$SIG{'__WARN__'} = sub {}; require $_";
 	if($@)
 	{
 		($_) = $@ =~ /locate (.+?)(?:\.pm)? in \@INC/;
@@ -72,6 +99,19 @@ if(@missing_modules)
 	exit;
 }
 
+# PAR issue workaround && different win* approach for Unicode output
+if(IS_WIN)
+{
+	binmode STDOUT, ':unix:utf8';
+	# Unicode (UTF-8) codepage
+	Win32::Console::OutputCP(WIN_UTF8_CODEPAGE);
+	$main::console = Win32::Console->new(STD_OUTPUT_HANDLE);
+}
+else
+{
+	binmode STDOUT, ':encoding(utf8)';
+}
+
 my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 (
 	basename(__FILE__).' %o',
@@ -79,6 +119,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['kind|k:s',		'playlist kind (eg. ya-playlist, music-blog, music-partners, etc.)'],
 	['album|a:i',		'album to download'],
 	['track|t:i',		'track to download (album id must be specified)'],
+	['url|u:s',			'download by URL'],
 	['dir|d:s',		'download path (current direcotry will be used by default)', {default => '.'}],
 	['proxy=s',		'HTTP-proxy (format: 1.2.3.4:8888)'],
 	['exclude=s',		'skip tracks specified in file'],
@@ -92,16 +133,22 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['Example: '],
 	["\t".basename(__FILE__) . ' -p 123 -k ya-playlist'],
 	["\t".basename(__FILE__) . ' -a 123'],
-	["\t".basename(__FILE__) . ' -a 123 -t 321']
+	["\t".basename(__FILE__) . ' -a 123 -t 321'],
+	["\t".basename(__FILE__) . ' -u https://music.yandex.ru/album/215690'],
+	["\t".basename(__FILE__) . ' -u https://music.yandex.ru/album/215688/track/1710808'],
+	["\t".basename(__FILE__) . ' -u https://music.yandex.ru/users/ya.playlist/playlists/1257']
 );
 
-if( $opt->help || ( !($opt->track && $opt->album) && !$opt->album && !($opt->playlist && $opt->kind) )  )
+# Get a modifiable options copy
+my %opt = %{$opt};
+
+if( $opt{help} || ( !$opt{url} && !($opt{track} && $opt{album}) && !$opt{album} && !($opt{playlist} && $opt{kind}) )  )
 {
 	print $usage->text;
 	exit;
 }
 
-if($opt->dir && !-d $opt->dir)
+if($opt{dir} && !-d $opt{dir})
 {
 	info(ERROR, 'Please, specify an existing directory');
 	exit;
@@ -114,37 +161,55 @@ my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
 my @exclude = ();
 my @include = ();
 
-if($opt->proxy)
+if($opt{proxy})
 {
-	$ua->proxy(['http', 'https'], 'http://' . $opt->proxy . '/');
+	$ua->proxy(['http', 'https'], 'http://' . $opt{proxy} . '/');
 }
 
-if($opt->exclude)
+if($opt{exclude})
 {
-	@exclude = read_file($opt->exclude);
+	@exclude = read_file($opt{exclude});
 }
 
-if($opt->include)
+if($opt{include})
 {
-	@include = read_file($opt->include);
+	@include = read_file($opt{include});
 }
 
-if($opt->album || ($opt->playlist && $opt->kind))
+if($opt{url})
+{
+	if($opt{url} =~ URL_TRACK_REGEX)
+	{
+		$opt{album} = $1;
+		$opt{track} = $2;
+	}
+	elsif($opt{url} =~ URL_ALBUM_REGEX)
+	{
+		$opt{album} = $1;
+	}
+	elsif($opt{url} =~ URL_PLAYLIST_REGEX)
+	{
+		$opt{kind} = $1;
+		$opt{playlist} = $2;
+	}
+}
+
+if($opt{album} || ($opt{playlist} && $opt{kind}))
 {
 	my @track_list_info;
 
-	if($opt->album)
+	if($opt{album})
 	{
-		info(INFO, 'Fetching album info: ' . $opt->album);
+		info(INFO, 'Fetching album info: ' . $opt{album});
 
-		@track_list_info = get_album_tracks_info($opt->album);
+		@track_list_info = get_album_tracks_info($opt{album});
 
-		if($opt->track)
+		if($opt{track})
 		{
-			info(INFO, 'Filtering single track: ' . $opt->track . ' [' . $opt->album . ']');
+			info(INFO, 'Filtering single track: ' . $opt{track} . ' [' . $opt{album} . ']');
 			@track_list_info = grep
 			(
-				(split(/\./, $_->{dir}))[1] eq $opt->track
+				(split(/\./, $_->{dir}))[1] eq $opt{track}
 				,
 				@track_list_info
 			);
@@ -152,9 +217,9 @@ if($opt->album || ($opt->playlist && $opt->kind))
 	}
 	else
 	{
-		info(INFO, 'Fetching playlist info: ' . $opt->playlist . ' [' . $opt->kind . ']');
+		info(INFO, 'Fetching playlist info: ' . $opt{playlist} . ' [' . $opt{kind} . ']');
 
-		@track_list_info = get_playlist_tracks_info($opt->playlist);
+		@track_list_info = get_playlist_tracks_info($opt{playlist});
 	}
 
 
@@ -190,7 +255,7 @@ if($opt->album || ($opt->playlist && $opt->kind))
 				last;
 			}
 		}
-		if($skip && $opt->include)
+		if($skip && $opt{include})
 		{
 			info(INFO, 'Skipping: ' . $track_info_ref->{title});
 			next;
@@ -214,11 +279,15 @@ if($opt->album || ($opt->playlist && $opt->kind))
 	info(OK, 'Done!');
 }
 
+if(IS_WIN)
+{
+	$main::console->Free();
+}
+
 sub fetch_track
 {
 	my $track_info_ref = shift;
 
-	#fix_encoding(\$track_info_ref->{title});
 	$track_info_ref->{title} =~ s/\s+$//;
 	$track_info_ref->{title} =~ s/[\\\/:"*?<>|]+/-/g;
 
@@ -251,7 +320,7 @@ sub fetch_track
 		info(ERROR, 'Failed to add MP3 tags for ' . $file_path);
 	}
 
-	my $target_path = $opt->dir . '/' . $track_info_ref->{title} . FILE_SAVE_EXT;
+	my $target_path = $opt{dir} . '/' . $track_info_ref->{title} . FILE_SAVE_EXT;
 	if(rename_track($file_path, $target_path))
 	{
 		info(INFO, $file_path . ' -> ' . $target_path);
@@ -284,7 +353,7 @@ sub download_track
 		return;
 	}
 
-	my ($file_handle, $file_path) = File::Temp::tempfile(DIR => $opt->dir);
+	my ($file_handle, $file_path) = File::Temp::tempfile(DIR => $opt{dir});
 	return unless $file_handle;
 
 	binmode $file_handle;
@@ -380,28 +449,27 @@ sub get_album_tracks_info
 		return;
 	}
 
-	#fix_encoding(\$title);
-
 	info(INFO, 'Album title: ' . $title);
 	info(INFO, 'Tracks total: ' . $json->{pageData}->{trackCount});
 
-	my @volumes = ();
+	my @tracks = ();
 	for my $vol(@{$json->{pageData}->{volumes}})
 	{
-		push @volumes, @{$vol};
+		my $track_number = 1;
+		for my $track(@{$vol})
+		{
+			push @tracks, create_track_entry($track, $track_number++);
+		}
 	}
 
-	return map
-	{
-		create_track_entry($_)
-	} @volumes;
+	return @tracks;
 }
 
 sub get_playlist_tracks_info
 {
 	my $playlist_id = shift;
 
-	my $request = $ua->get(YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $opt->kind, $playlist_id));
+	my $request = $ua->get(YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $opt{kind}, $playlist_id));
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
@@ -428,8 +496,6 @@ sub get_playlist_tracks_info
 		info(DEBUG, 'Can\'t get playlist title');
 		return;
 	}
-
-	#fix_encoding(\$title);
 
 	info(INFO, 'Playlist title: ' . $title);
 	info(INFO, 'Tracks total: ' . $json->{pageData}->{playlist}->{trackCount});
@@ -474,15 +540,16 @@ sub get_playlist_tracks_info
 			push @tracks_info,
 				map
 				{
-					create_track_entry($_)
+					create_track_entry($_, 0)
 				} @{ $json };
 		}
 	}
 	else
 	{
+
 		@tracks_info = map
 		{
-			create_track_entry($_)
+			create_track_entry($_, 0)
 		} @{ $json->{pageData}->{playlist}->{tracks} };
 	}
 
@@ -491,8 +558,7 @@ sub get_playlist_tracks_info
 
 sub create_track_entry
 {
-	my $track_info = shift;
-
+	my ($track_info, $track_number) = @_;
 
 	# Better detection algo?
 	my $is_part_of_album = scalar @{$track_info->{albums}} != 0;
@@ -502,40 +568,45 @@ sub create_track_entry
 		($is_part_of_album && $track_info->{albums}->[0]->{artists}->[0]->{name} eq GENERIC_COLLECTION)
 	;
 
-	my ($talb, $tpe2, $apic, $tyer, $tit2, $tpe1);
+	# TALB - album title; TPE2 - album artist;
+	# APIC - album picture; TYER - year;
+	# TIT2 - song title; TPE1 - song artist;
+	# TCON - track genre; TRCK - track number
+	my %mp3_tags = ();
 
-	$tpe1 = join ', ', map { $_->{name} } @{$track_info->{artists}};
-	$tit2 = $track_info->{title};
+	$mp3_tags{TPE1} = join ', ', map { $_->{name} } @{$track_info->{artists}};
+	$mp3_tags{TIT2} = $track_info->{title};
+	# No track number info in JSON if fetching from anything but album
+	if($track_number)
+	{
+		$mp3_tags{TRCK} = $track_number;
+	}
+	
+	# Append track postfix (like remix) if present
+	if(exists $track_info->{version})
+	{
+		$mp3_tags{TIT2} .= "\x20" . '(' . $track_info->{version} . ')';
+	}
 
 	# For deleted tracks
 	if($is_part_of_album)
 	{
-		$talb = $track_info->{albums}->[0]->{title};
-		$tpe2 = $is_various ? GENERIC_TITLE : $track_info->{albums}->[0]->{artists}->[0]->{name};
+		$mp3_tags{TALB} = $track_info->{albums}->[0]->{title};
+		$mp3_tags{TPE2} = $is_various ? GENERIC_TITLE : $track_info->{albums}->[0]->{artists}->[0]->{name};
 		# 'Dummy' cover for post-process
-		$apic = $track_info->{albums}->[0]->{coverUri};
-		$tyer = $track_info->{albums}->[0]->{year};
+		$mp3_tags{APIC} = $track_info->{albums}->[0]->{coverUri};
+		$mp3_tags{TYER} = $track_info->{albums}->[0]->{year};
+		$mp3_tags{TCON} = $track_info->{albums}->[0]->{genre};
 	}
 
-	# TALB - album title; TPE2 - album artist;
-	# APIC - album picture; TYER - year;
-	# TIT2 - song title; TPE1 - song artist
 	return
 	{
 		# Download path part
-		dir => $_->{storageDir},
+		dir => $track_info->{storageDir},
 		# MP3 tags
-		mp3tags => 
-		{
-			TALB => $talb,
-			TPE2 => $tpe2,
-			APIC => $apic,
-			TYER => $tyer,
-			TIT2 => $tit2,
-			TPE1 => $tpe1
-		},
+		mp3tags => \%mp3_tags,
 		# Save As file name
-		title => $tpe1 . ARTIST_TITLE_DELIM . $tit2 
+		title => $mp3_tags{TPE1} . ARTIST_TITLE_DELIM . $mp3_tags{TIT2}
 	};
 }
 
@@ -694,24 +765,33 @@ sub create_json
 	return $json;
 }
 
-sub fix_encoding
-{
-	my $ref = shift;
-	from_to($$ref, 'unicode', TARGET_ENC);
-}
-
 sub info
 {
 	my ($type, $msg) = @_;
 
 	if($type eq DEBUG)
 	{
-		return if !$opt->debug;
+		return if !$opt{debug};
 		# Func, line, msg
 		$msg = (caller(1))[3] . "(" . (caller(0))[2] . "): " . $msg;
 	}
 
-	$msg = Term::ANSIColor::colored('['.$type.']', $log_colors{$type}) . ' ' . $msg;
+	if(IS_WIN)
+	{
+		local $\ = undef;
+
+		my $attr = $main::console->Attr();
+		$main::console->Attr($log_colors{$type}->{win});
+
+		print '['.$type.']';
+
+		$main::console->Attr($attr);
+		$msg = ' ' . $msg;
+	}
+	else
+	{
+		$msg = Term::ANSIColor::colored('['.$type.']', $log_colors{$type}->{nix}) . ' ' . $msg;
+	}
 	# Actual terminal width detection?
 	$msg = sprintf('%-80s', $msg);
 
@@ -763,7 +843,7 @@ sub read_file
 		return @lines;
 	}
 
-	info(ERROR, 'Failed to open file ' . $opt->ignore);
+	info(ERROR, 'Failed to open file ' . $opt{ignore});
 
 	return;
 }
