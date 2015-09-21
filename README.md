@@ -13,6 +13,7 @@ ya.pl [-adkpt] [long options...]
 	                  music-partners, etc.)
 	-a --album        album to download
 	-t --track        track to download (album id must be specified)
+	-u --url          download by URL
 	-d --dir          download path (current direcotry will be used by
 	                  default)
 	--proxy           HTTP-proxy (format: 1.2.3.4:8888)
@@ -28,6 +29,9 @@ ya.pl [-adkpt] [long options...]
 		ya.pl -p 123 -k ya-playlist
 		ya.pl -a 123   
 		ya.pl -a 123 -t 321
+		ya.pl -u https://music.yandex.ru/album/215690
+		ya.pl -u https://music.yandex.ru/album/215688/track/1710808
+		ya.pl -u https://music.yandex.ru/users/ya.playlist/playlists/1257
 
 ```
 
