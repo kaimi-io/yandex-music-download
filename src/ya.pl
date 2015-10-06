@@ -156,7 +156,7 @@ if($opt{dir} && !-d $opt{dir})
 
 MP3::Tag->config('id3v23_unsync', 0);
 my ($whole_file, $total_size);
-my $ua = LWP::UserAgent->new(agent => AGENT, cookie_jar => new HTTP::Cookies, timeout => TIMEOUT);
+my $ua = LWP::UserAgent->new(agent => AGENT, cookie_jar => new HTTP::Cookies, timeout => TIMEOUT, ssl_opts => { verify_hostname => 0 });
 my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
 my @exclude = ();
 my @include = ();
