@@ -44,7 +44,11 @@ use constant
 	FG_BLUE => 1,
 	FG_GREEN => 2,
 	FG_RED => 4,
-	BG_WHITE => 112
+	BG_WHITE => 112,
+	SZ_CONSOLE_FONT_INFOEX => 84,
+	FF_MODERN_OR_6 => 54,
+	FW_NORMAL => 400,
+	COORD => 524300
 };
 
 my %log_colors = 
@@ -74,8 +78,8 @@ my %log_colors =
 my %req_modules = 
 (
 	NIX => [],
-	WIN => [ qw/Win32API::File Win32::Console/ ],
-	ALL => [ qw/Digest::MD5 File::Copy File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
+	WIN => [ qw/Win32::API Win32API::File Win32::Console/ ],
+	ALL => [ qw/Mozilla::CA Digest::MD5 File::Copy File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
 );
 
 $\ = NL;
@@ -106,6 +110,47 @@ if(IS_WIN)
 	# Unicode (UTF-8) codepage
 	Win32::Console::OutputCP(WIN_UTF8_CODEPAGE);
 	$main::console = Win32::Console->new(STD_OUTPUT_HANDLE);
+
+	# Set console font with Unicode support (only for Vista+ OS)
+	if((Win32::GetOSVersion())[1] eq 6)
+	{
+		# FaceName size = LF_FACESIZE
+		Win32::API::Struct->typedef
+		(
+			CONSOLE_FONT_INFOEX =>
+			qw
+			{
+				ULONG cbSize; 
+				DWORD nFont; 
+				DWORD dwFontSize;
+				UINT FontFamily;
+				UINT FontWeight;
+				WCHAR FaceName[32];
+		    }
+		);
+
+		Win32::API->Import
+		(
+			'kernel32',
+			'HANDLE WINAPI GetStdHandle(DWORD nStdHandle)'
+		);
+		Win32::API->Import
+		(
+			'kernel32',
+			'BOOL WINAPI SetCurrentConsoleFontEx(HANDLE hConsoleOutput, BOOL bMaximumWindow, LPCONSOLE_FONT_INFOEX lpConsoleCurrentFontEx)'
+		);
+
+		my $font = Win32::API::Struct->new('CONSOLE_FONT_INFOEX');
+
+		$font->{cbSize} = SZ_CONSOLE_FONT_INFOEX;
+		$font->{nFont} = 1;
+		$font->{dwFontSize} = COORD; # COORD struct wrap
+		$font->{FontFamily} = FF_MODERN_OR_6;
+		$font->{FontWeight} = FW_NORMAL;
+		$font->{FaceName} = "Lucida Console";
+
+		SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), 0, $font);
+	}
 }
 else
 {
@@ -156,7 +201,7 @@ if($opt{dir} && !-d $opt{dir})
 
 MP3::Tag->config('id3v23_unsync', 0);
 my ($whole_file, $total_size);
-my $ua = LWP::UserAgent->new(agent => AGENT, cookie_jar => new HTTP::Cookies, timeout => TIMEOUT, ssl_opts => { verify_hostname => 0 });
+my $ua = LWP::UserAgent->new(agent => AGENT, cookie_jar => new HTTP::Cookies, timeout => TIMEOUT);
 my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
 my @exclude = ();
 my @include = ();
