@@ -26,9 +26,9 @@ use constant
 	COVER_RESOLUTION => '400x400',
 	GENERIC_COLLECTION => "\x{441}\x{431}\x{43e}\x{440}\x{43d}\x{438}\x{43a}",
 	GENERIC_TITLE => 'Various Artists',
-	URL_ALBUM_REGEX => qr{music\.yandex\.ru/album/(\d+)}is,
-	URL_TRACK_REGEX => qr{music\.yandex\.ru/album/(\d+)/track/(\d+)}is,
-	URL_PLAYLIST_REGEX => qr{music\.yandex\.ru/users/(.+?)/playlists/(\d+)}is
+	URL_ALBUM_REGEX => qr{music\.yandex\.\w+/album/(\d+)}is,
+	URL_TRACK_REGEX => qr{music\.yandex\.\w+/album/(\d+)/track/(\d+)}is,
+	URL_PLAYLIST_REGEX => qr{music\.yandex\.\w+/users/(.+?)/playlists/(\d+)}is
 };
 use constant
 {
@@ -126,7 +126,7 @@ if(IS_WIN)
 				UINT FontFamily;
 				UINT FontWeight;
 				WCHAR FaceName[32];
-		    }
+			}
 		);
 
 		Win32::API->Import
@@ -236,6 +236,10 @@ if($opt{url})
 	{
 		$opt{kind} = $1;
 		$opt{playlist} = $2;
+	}
+	else
+	{
+		info(ERROR, 'Invalid URL format');
 	}
 }
 
