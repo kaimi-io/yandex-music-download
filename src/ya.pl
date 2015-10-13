@@ -46,9 +46,10 @@ use constant
 	FG_RED => 4,
 	BG_WHITE => 112,
 	SZ_CONSOLE_FONT_INFOEX => 84,
-	FF_MODERN_OR_6 => 54,
+	FF_DONTCARE => 0 << 4,
 	FW_NORMAL => 400,
-	COORD => 524300
+	COORD => 0x000c0000,
+	FONT_NAME => 'Lucida Console'
 };
 
 my %log_colors = 
@@ -143,11 +144,11 @@ if(IS_WIN)
 		my $font = Win32::API::Struct->new('CONSOLE_FONT_INFOEX');
 
 		$font->{cbSize} = SZ_CONSOLE_FONT_INFOEX;
-		$font->{nFont} = 1;
+		$font->{nFont} = 0;
 		$font->{dwFontSize} = COORD; # COORD struct wrap
-		$font->{FontFamily} = FF_MODERN_OR_6;
+		$font->{FontFamily} = FF_DONTCARE;
 		$font->{FontWeight} = FW_NORMAL;
-		$font->{FaceName} = "Lucida Console";
+		$font->{FaceName} = Encode::encode('UTF-16LE', FONT_NAME);
 
 		SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), 0, $font);
 	}
