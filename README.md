@@ -19,6 +19,7 @@ ya.pl [-adkpt] [long options...]
 	--proxy           HTTP-proxy (format: 1.2.3.4:8888)
 	--exclude         skip tracks specified in file
 	--include         download only tracks specified in file
+	--delay           delay between downloads (in seconds)
 
 	--debug           print debug info during work
 	--help            print usage
