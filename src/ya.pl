@@ -12,15 +12,19 @@ use constant
 	NL => IS_WIN ? "\015" : "\012",
 	TIMEOUT => 5,
 	AGENT => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0',
+	MOBILE_AGENT => 'Dalvik/2.1.0 (Linux; U; Android 5.0; Google Nexus 4 - 5.0.0 - API 21 - 768x1280 Build/LRX21M)',
 	YANDEX_BASE => 'https://music.yandex.ru',
+	MOBILE_YANDEX_BASE => 'https://api.music.yandex.net',
 	MD5_SALT => 'XGRlBW9FXlekgbPrRHuSiA',
 	MUSIC_INFO_REGEX => qr{var\s+Mu\s+=\s+(.+?);\s+</script>}is,
 	DOWNLOAD_INFO_MASK => '/api/v1.5/handlers/api-jsonp.jsx?requestId=2&nc=%d&action=getTrackSrc&p=download-info/%s/2.mp3',
+	MOBILE_DOWNLOAD_INFO_MASK => '/tracks/%d/download-info',
 	DOWNLOAD_PATH_MASK => 'http://%s/get-mp3/%s/%s?track-id=%s&from=service-10-track&similarities-experiment=default',
 	PLAYLIST_INFO_MASK => '/users/%s/playlists/%d',
 	PLAYLIST_REQ_PART => '{"userFeed":"old","similarities":"default","genreRadio":"new-ichwill-matrixnet6","recommendedArtists":"ichwill_similar_artists","recommendedTracks":"recommended_tracks_by_artist_from_history","recommendedAlbumsOfFavoriteGenre":"recent","recommendedSimilarArtists":"default","recommendedArtistsWithArtistsFromHistory":"force_recent","adv":"a","loserArtistsWithArtists":"off","ny2015":"no"}',
 	PLAYLIST_FULL_INFO => '/handlers/track-entries.jsx',
 	ALBUM_INFO_MASK => '/album/%d',
+	MOBILE_ALBUM_INFO_MASK => '/albums/%d/with-tracks',
 	FILE_SAVE_EXT => '.mp3',
 	ARTIST_TITLE_DELIM => ' - ',
 	COVER_RESOLUTION => '400x400',
@@ -171,6 +175,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['exclude=s',		'skip tracks specified in file'],
 	['include=s',		'download only tracks specified in file'],
 	['delay=i',			'delay between downloads (in seconds)'],
+	['mobile',			'use mobile API'],
 	[],
 	['debug',		'print debug info during work'],
 	['help',		'print usage'],
@@ -178,12 +183,12 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['--include and --exclude options use weak match i.e. ~/$term/'],
 	[],
 	['Example: '],
-	["\t".basename(__FILE__) . ' -p 123 -k ya-playlist'],
-	["\t".basename(__FILE__) . ' -a 123'],
-	["\t".basename(__FILE__) . ' -a 123 -t 321'],
-	["\t".basename(__FILE__) . ' -u https://music.yandex.ru/album/215690'],
-	["\t".basename(__FILE__) . ' -u https://music.yandex.ru/album/215688/track/1710808'],
-	["\t".basename(__FILE__) . ' -u https://music.yandex.ru/users/ya.playlist/playlists/1257']
+	[basename(__FILE__) . ' -p 123 -k ya-playlist'],
+	[basename(__FILE__) . ' -a 123'],
+	[basename(__FILE__) . ' -a 123 -t 321'],
+	[basename(__FILE__) . ' -u https://music.yandex.ru/album/215690'],
+	[basename(__FILE__) . ' -u https://music.yandex.ru/album/215688/track/1710808'],
+	[basename(__FILE__) . ' -u https://music.yandex.ru/users/ya.playlist/playlists/1257']
 );
 
 # Get a modifiable options copy
@@ -203,7 +208,12 @@ if($opt{dir} && !-d $opt{dir})
 
 MP3::Tag->config('id3v23_unsync', 0);
 my ($whole_file, $total_size);
-my $ua = LWP::UserAgent->new(agent => AGENT, cookie_jar => new HTTP::Cookies, timeout => TIMEOUT);
+my $ua = LWP::UserAgent->new
+(
+	agent => $opt{mobile} ? MOBILE_AGENT : AGENT,
+	cookie_jar => new HTTP::Cookies,
+	timeout => TIMEOUT
+);
 my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
 my @exclude = ();
 my @include = ();
@@ -435,7 +445,14 @@ sub get_track_url
 {
 	my $storage_dir = shift;
 
-	my $request = $ua->get(YANDEX_BASE.sprintf(DOWNLOAD_INFO_MASK, time, $storage_dir));
+	my (undef, $track_id) = split /\./, $storage_dir;
+	my $request = $ua->get
+	(
+		$opt{mobile} ?
+			MOBILE_YANDEX_BASE.sprintf(MOBILE_DOWNLOAD_INFO_MASK, $track_id)
+			:
+			YANDEX_BASE.sprintf(DOWNLOAD_INFO_MASK, time, $storage_dir)
+	);
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
@@ -456,14 +473,53 @@ sub get_track_url
 		return;
 	}
 
-	my %fields =
-	(
-		host => $json->{host},
-		path => $json->{path},
-		ts => $json->{ts},
-		region => $json->{region},
-		s => $json->{s}
-	);
+
+	my %fields;
+	if($opt{mobile})
+	{
+		my ($idx, $target_idx) = (0, -1);
+		my $bitrate = 0;
+		for my $track_info(@{$json->{result}})
+		{
+			if($track_info->{codec} eq 'mp3')
+			{
+				if($track_info->{bitrateInKbps} > $bitrate)
+				{
+					$bitrate = $track_info->{bitrateInKbps};
+					$target_idx = $idx;
+				}
+			}
+
+			$idx++;
+		}
+
+		if($target_idx < 0)
+		{
+			info(DEBUG, 'Can\'t find track with proper format & bitrate');
+			return;
+		}
+
+		$request = $ua->get(@{$json->{result}}[$target_idx]->{downloadInfoUrl});
+		if(!$request->is_success)
+		{
+			info(DEBUG, 'Request failed');
+			return;
+		}
+
+		# No proper XML parsing cause it will break soon
+		%fields = ($request->content =~ /<(\w+)>([^<]+?)<\/\w+>/g);
+	}
+	else
+	{
+		%fields =
+		(
+			host => $json->{host},
+			path => $json->{path},
+			ts => $json->{ts},
+			region => $json->{region},
+			s => $json->{s}
+		);
+	}
 
 	my $hash = Digest::MD5::md5_hex(MD5_SALT . substr($fields{path}, 1) . $fields{s});
 	my $url = sprintf(DOWNLOAD_PATH_MASK, $fields{host}, $hash, $fields{ts}.$fields{path}, (split /\./, $storage_dir)[1]);
@@ -477,14 +533,22 @@ sub get_album_tracks_info
 {
 	my $album_id = shift;
 
-	my $request = $ua->get(YANDEX_BASE.sprintf(ALBUM_INFO_MASK, $album_id));
+
+	my $request = $ua->get
+	(
+		$opt{mobile} ?
+			MOBILE_YANDEX_BASE.sprintf(MOBILE_ALBUM_INFO_MASK, $album_id)
+			:
+			YANDEX_BASE.sprintf(ALBUM_INFO_MASK, $album_id)
+	);
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
 		return;
 	}
 
-	my ($json_data) = ($request->as_string =~ MUSIC_INFO_REGEX);
+
+	my ($json_data) = $opt{mobile} ? $request->content : ($request->content =~ MUSIC_INFO_REGEX);
 	if(!$json_data)
 	{
 		info(DEBUG, 'Can\'t parse JSON blob');
@@ -498,7 +562,9 @@ sub get_album_tracks_info
 		return;
 	}
 
-	my $title = $json->{pageData}->{title};
+	my $parent = $opt{mobile} ? 'result' : 'pageData';
+
+	my $title = $json->{$parent}->{title};
 	if(!$title)
 	{
 		info(DEBUG, 'Can\'t get album title');
@@ -506,10 +572,10 @@ sub get_album_tracks_info
 	}
 
 	info(INFO, 'Album title: ' . $title);
-	info(INFO, 'Tracks total: ' . $json->{pageData}->{trackCount});
+	info(INFO, 'Tracks total: ' . $json->{$parent}->{trackCount});
 
 	my @tracks = ();
-	for my $vol(@{$json->{pageData}->{volumes}})
+	for my $vol(@{$json->{$parent}->{volumes}})
 	{
 		my $track_number = 1;
 		for my $track(@{$vol})
@@ -525,14 +591,20 @@ sub get_playlist_tracks_info
 {
 	my $playlist_id = shift;
 
-	my $request = $ua->get(YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $opt{kind}, $playlist_id));
+	my $request = $ua->get
+	(
+		$opt{mobile} ?
+			MOBILE_YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $opt{kind}, $playlist_id)
+			:
+			YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $opt{kind}, $playlist_id)
+	);
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
 		return;
 	}
 
-	my ($json_data) = ($request->as_string =~ MUSIC_INFO_REGEX);
+	my ($json_data) = $opt{mobile} ? $request->content : ($request->content =~ MUSIC_INFO_REGEX);
 	if(!$json_data)
 	{
 		info(DEBUG, 'Can\'t parse JSON blob');
@@ -546,7 +618,7 @@ sub get_playlist_tracks_info
 		return;
 	}
 
-	my $title = $json->{pageData}->{playlist}->{title};
+	my $title =  $opt{mobile} ? $json->{result}->{title} : $json->{pageData}->{playlist}->{title};
 	if(!$title)
 	{
 		info(DEBUG, 'Can\'t get playlist title');
@@ -554,11 +626,19 @@ sub get_playlist_tracks_info
 	}
 
 	info(INFO, 'Playlist title: ' . $title);
-	info(INFO, 'Tracks total: ' . $json->{pageData}->{playlist}->{trackCount});
+	info
+	(
+		INFO,
+		'Tracks total: ' .
+			$opt{mobile} ?
+				$json->{result}->{trackCount}
+				:
+				$json->{pageData}->{playlist}->{trackCount}
+	);
 
 	my @tracks_info;
 
-	if($json->{pageData}->{playlist}->{trackIds})
+	if(!$opt{mobile} && $json->{pageData}->{playlist}->{trackIds})
 	{
 		my @playlist_chunks;
 		my $tracks_ref = $json->{pageData}->{playlist}->{trackIds};
@@ -602,11 +682,23 @@ sub get_playlist_tracks_info
 	}
 	else
 	{
-
 		@tracks_info = map
 		{
-			create_track_entry($_, 0)
-		} @{ $json->{pageData}->{playlist}->{tracks} };
+			create_track_entry
+			(
+				$opt{mobile} ?
+					$_->{track}
+					:
+					$_
+				, 0
+			)
+		} @
+		{ 
+			$opt{mobile} ?
+				$json->{result}->{tracks}
+				:
+				$json->{pageData}->{playlist}->{tracks} 
+		};
 	}
 
 	return @tracks_info;
