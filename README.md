@@ -20,6 +20,7 @@ ya.pl [-adkpt] [long options...]
 	--exclude         skip tracks specified in file
 	--include         download only tracks specified in file
 	--delay           delay between downloads (in seconds)
+	--mobile          use mobile API
 
 	--debug           print debug info during work
 	--help            print usage
@@ -27,12 +28,12 @@ ya.pl [-adkpt] [long options...]
 	--include and --exclude options use weak match i.e. ~/$term/
 
 	Example:        
-		ya.pl -p 123 -k ya-playlist
-		ya.pl -a 123   
-		ya.pl -a 123 -t 321
-		ya.pl -u https://music.yandex.ru/album/215690
-		ya.pl -u https://music.yandex.ru/album/215688/track/1710808
-		ya.pl -u https://music.yandex.ru/users/ya.playlist/playlists/1257
+	ya.pl -p 123 -k ya-playlist
+	ya.pl -a 123   
+	ya.pl -a 123 -t 321
+	ya.pl -u https://music.yandex.ru/album/215690
+	ya.pl -u https://music.yandex.ru/album/215688/track/1710808
+	ya.pl -u https://music.yandex.ru/users/ya.playlist/playlists/1257
 
 ```
 
