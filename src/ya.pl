@@ -174,8 +174,8 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['proxy=s',		'HTTP-proxy (format: 1.2.3.4:8888)'],
 	['exclude=s',		'skip tracks specified in file'],
 	['include=s',		'download only tracks specified in file'],
-	['delay=i',			'delay between downloads (in seconds)'],
-	['mobile',			'use mobile API'],
+	['delay=i',			'delay between downloads (in seconds)', {default => 5}],
+	['mobile',			'use mobile API', {default => 1}],
 	[],
 	['debug',		'print debug info during work'],
 	['help',		'print usage'],
@@ -336,8 +336,9 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 
 		fetch_track($track_info_ref);
 
-		if($opt{delay})
+		if($opt{delay} && $track_info_ref != $track_list_info[-1])
 		{
+			info(INFO, 'Waiting for ' . $opt{delay} . ' seconds');
 			sleep $opt{delay};
 		}
 	}
