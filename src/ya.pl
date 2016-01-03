@@ -175,7 +175,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['exclude=s',		'skip tracks specified in file'],
 	['include=s',		'download only tracks specified in file'],
 	['delay=i',			'delay between downloads (in seconds)', {default => 5}],
-	['mobile',			'use mobile API', {default => 1}],
+	['mobile=i',			'use mobile API', {default => 1}],
 	[],
 	['debug',		'print debug info during work'],
 	['help',		'print usage'],
