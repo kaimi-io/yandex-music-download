@@ -9,7 +9,7 @@ use POSIX qw/strftime/;
 use constant IS_WIN => $^O eq 'MSWin32';
 use constant
 {
-	NL => IS_WIN ? "\015" : "\012",
+	NL => IS_WIN ? "\015\012" : "\012",
 	TIMEOUT => 5,
 	AGENT => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0',
 	MOBILE_AGENT => 'Dalvik/2.1.0 (Linux; U; Android 5.0; Google Nexus 4 - 5.0.0 - API 21 - 768x1280 Build/LRX21M)',
