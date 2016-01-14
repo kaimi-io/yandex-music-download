@@ -631,10 +631,12 @@ sub get_playlist_tracks_info
 	(
 		INFO,
 		'Tracks total: ' .
+		(
 			$opt{mobile} ?
 				$json->{result}->{trackCount}
 				:
 				$json->{pageData}->{playlist}->{trackCount}
+		)
 	);
 
 	my @tracks_info;
