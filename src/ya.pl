@@ -85,7 +85,7 @@ my %req_modules =
 (
 	NIX => [],
 	WIN => [ qw/Win32::API Win32API::File Win32::Console/ ],
-	ALL => [ qw/Mozilla::CA Digest::MD5 File::Copy File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent HTTP::Cookies HTML::Entities/ ]
+	ALL => [ qw/Mozilla::CA Digest::MD5 File::Copy File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent LWP::Protocol::https HTTP::Cookies HTML::Entities/ ]
 );
 
 $\ = NL;
