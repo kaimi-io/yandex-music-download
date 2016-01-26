@@ -9,7 +9,7 @@ use POSIX qw/strftime/;
 use constant IS_WIN => $^O eq 'MSWin32';
 use constant
 {
-	NL => IS_WIN ? "\015" : "\012",
+	NL => IS_WIN ? "\015\012" : "\012",
 	TIMEOUT => 5,
 	AGENT => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0',
 	MOBILE_AGENT => 'Dalvik/2.1.0 (Linux; U; Android 5.0; Google Nexus 4 - 5.0.0 - API 21 - 768x1280 Build/LRX21M)',
@@ -176,7 +176,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['exclude=s',		'skip tracks specified in file'],
 	['include=s',		'download only tracks specified in file'],
 	['delay=i',			'delay between downloads (in seconds)', {default => 5}],
-	['mobile',			'use mobile API', {default => 1}],
+	['mobile=i',			'use mobile API', {default => 1}],
 	[],
 	['debug',		'print debug info during work'],
 	['help',		'print usage'],
@@ -638,10 +638,12 @@ sub get_playlist_tracks_info
 	(
 		INFO,
 		'Tracks total: ' .
+		(
 			$opt{mobile} ?
 				$json->{result}->{trackCount}
 				:
 				$json->{pageData}->{playlist}->{trackCount}
+		)
 	);
 
 	my @tracks_info;
