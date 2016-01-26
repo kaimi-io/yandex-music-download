@@ -32,7 +32,8 @@ use constant
 	GENERIC_TITLE => 'Various Artists',
 	URL_ALBUM_REGEX => qr{music\.yandex\.\w+/album/(\d+)}is,
 	URL_TRACK_REGEX => qr{music\.yandex\.\w+/album/(\d+)/track/(\d+)}is,
-	URL_PLAYLIST_REGEX => qr{music\.yandex\.\w+/users/(.+?)/playlists/(\d+)}is
+	URL_PLAYLIST_REGEX => qr{music\.yandex\.\w+/users/(.+?)/playlists/(\d+)}is,
+	RESPONSE_LOG_PREFIX => 'log_'
 };
 use constant
 {
@@ -405,7 +406,8 @@ sub download_track
 	my $request = $ua->head($url);
 	if(!$request->is_success)
 	{
-		info(DEBUG, 'HEAD request failed');
+		info(DEBUG, 'Request failed');
+		log_response($request);
 		return;
 	}
 
@@ -416,7 +418,8 @@ sub download_track
 	$request = $ua->get($url, ':content_cb' => \&progress);
 	if(!$request->is_success)
 	{
-		info(DEBUG, 'GET request failed in '.(caller(0))[3]);
+		info(DEBUG, 'Request failed');
+		log_response($request);
 		return;
 	}
 
@@ -457,6 +460,7 @@ sub get_track_url
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
+		log_response($request);
 		return;
 	}
 
@@ -504,6 +508,7 @@ sub get_track_url
 		if(!$request->is_success)
 		{
 			info(DEBUG, 'Request failed');
+			log_response($request);
 			return;
 		}
 
@@ -545,6 +550,7 @@ sub get_album_tracks_info
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
+		log_response($request);
 		return;
 	}
 
@@ -602,6 +608,7 @@ sub get_playlist_tracks_info
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
+		log_response($request);
 		return;
 	}
 
@@ -664,6 +671,7 @@ sub get_playlist_tracks_info
 			if(!$request->is_success)
 			{
 				info(DEBUG, 'Request failed');
+				log_response($request);
 				return;
 			}
 
@@ -813,6 +821,7 @@ sub fetch_album_cover
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
+		log_response($request);
 		undef $mp3tags->{APIC};
 		return;
 	}
@@ -995,4 +1004,21 @@ sub read_file
 	info(ERROR, 'Failed to open file ' . $opt{ignore});
 
 	return;
+}
+
+sub log_response
+{
+	my $response = shift;
+
+	my $log_filename = RESPONSE_LOG_PREFIX . time;
+	if(open(my $fh, '>', $log_filename))
+	{
+		binmode $fh;
+		print $fh, $response->as_string;
+		close $fh;
+
+		info(DEBUG, 'Response stored at ' . $log_filename);
+	}
+
+	info(DEBUG, 'Failed to store response stored at ' . $log_filename);
 }
