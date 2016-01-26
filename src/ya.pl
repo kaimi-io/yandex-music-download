@@ -559,6 +559,7 @@ sub get_album_tracks_info
 	if(!$json_data)
 	{
 		info(DEBUG, 'Can\'t parse JSON blob');
+		log_response($request);
 		return;
 	}
 
@@ -566,6 +567,7 @@ sub get_album_tracks_info
 	if(!$json)
 	{
 		info(DEBUG, 'Can\'t create json from data: ' . $@);
+		log_response($request);
 		return;
 	}
 
@@ -616,6 +618,7 @@ sub get_playlist_tracks_info
 	if(!$json_data)
 	{
 		info(DEBUG, 'Can\'t parse JSON blob');
+		log_response($request);
 		return;
 	}
 
@@ -623,6 +626,7 @@ sub get_playlist_tracks_info
 	if(!$json)
 	{
 		info(DEBUG, 'Can\'t create json from data: ' . $@);
+		log_response($request);
 		return;
 	}
 
@@ -681,6 +685,7 @@ sub get_playlist_tracks_info
 			if(!$json)
 			{
 				info(DEBUG, 'Can\'t create json from data');
+				log_response($request);
 				return;
 			}
 
@@ -1011,16 +1016,19 @@ sub read_file
 sub log_response
 {
 	my $response = shift;
+	return if !$opt{debug};
 
 	my $log_filename = RESPONSE_LOG_PREFIX . time;
 	if(open(my $fh, '>', $log_filename))
 	{
 		binmode $fh;
-		print $fh, $response->as_string;
+		print $fh $response->as_string;
 		close $fh;
 
 		info(DEBUG, 'Response stored at ' . $log_filename);
 	}
-
-	info(DEBUG, 'Failed to store response stored at ' . $log_filename);
+	else
+	{
+		info(DEBUG, 'Failed to store response stored at ' . $log_filename);
+	}
 }
