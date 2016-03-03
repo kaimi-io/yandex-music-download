@@ -213,7 +213,12 @@ my $ua = LWP::UserAgent->new
 (
 	agent => $opt{mobile} ? MOBILE_AGENT : AGENT,
 	cookie_jar => new HTTP::Cookies,
-	timeout => TIMEOUT
+	timeout => TIMEOUT,
+	ssl_opts =>
+	{
+		verify_hostname => $opt{debug} ? 0 : 1,
+		SSL_verify_mode => $opt{debug} ? IO::Socket::SSL->SSL_VERIFY_NONE : IO::Socket::SSL->SSL_VERIFY_PEER,
+	}
 );
 my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
 my @exclude = ();
