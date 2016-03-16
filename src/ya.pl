@@ -33,7 +33,8 @@ use constant
 	URL_ALBUM_REGEX => qr{music\.yandex\.\w+/album/(\d+)}is,
 	URL_TRACK_REGEX => qr{music\.yandex\.\w+/album/(\d+)/track/(\d+)}is,
 	URL_PLAYLIST_REGEX => qr{music\.yandex\.\w+/users/(.+?)/playlists/(\d+)}is,
-	RESPONSE_LOG_PREFIX => 'log_'
+	RESPONSE_LOG_PREFIX => 'log_',
+	TEST_URL => 'https://api.music.yandex.net/users/ya.playlist/playlists/1'
 };
 use constant
 {
@@ -264,6 +265,18 @@ if($opt{url})
 if($opt{album} || ($opt{playlist} && $opt{kind}))
 {
 	my @track_list_info;
+
+	info(INFO, 'Checking Yandex.Music availability');
+
+	my $request = $ua->get(TEST_URL);
+	if($request->code == 400)
+	{
+		info(ERROR, 'Yandex.Music is not available');
+	}
+	else
+	{
+		info(OK, 'Yandex.Music is available')
+	}
 
 	if($opt{album})
 	{
@@ -794,10 +807,11 @@ sub write_mp3_tags
 
 	while(my ($frame, $data) = each %{$mp3tags})
 	{
-		info(DEBUG, 'add_frame: ' . $frame . '=' . substr $data, 0, 16);
 		# Skip empty
 		if($data)
 		{
+			info(DEBUG, 'add_frame: ' . $frame . '=' . substr $data, 0, 16);
+
 			$mp3->{ID3v2}->add_frame
 			(
 				$frame,
