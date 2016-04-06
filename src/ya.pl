@@ -289,7 +289,7 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 			info(INFO, 'Filtering single track: ' . $opt{track} . ' [' . $opt{album} . ']');
 			@track_list_info = grep
 			(
-				(split(/\./, $_->{dir}))[1] eq $opt{track}
+				(split(/\./, $_->{dir}))[-1] eq $opt{track}
 				,
 				@track_list_info
 			);
@@ -467,7 +467,7 @@ sub get_track_url
 {
 	my $storage_dir = shift;
 
-	my (undef, $track_id) = split /\./, $storage_dir;
+	my $track_id = (split(/\./, $storage_dir))[-1];
 	my $request = $ua->get
 	(
 		$opt{mobile} ?
