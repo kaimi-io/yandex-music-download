@@ -2,7 +2,7 @@ Yandex Music Downloader
 =====================
 
 This is a simple command line Perl script for downloading music from Yandex Music (http://music.yandex.ru).
-Origin of the script is the following article: http://kaimi.ru/2013/11/yandex-music-downloader/
+Origin of the script is the following article: https://kaimi.io/2013/11/yandex-music-downloader/
 
 # Usage
 
@@ -37,4 +37,4 @@ ya.pl [-adkpt] [long options...]
 
 ```
 
-For further assistance don't hesitate to ask for help in GitHub issues or on the blog: http://kaimi.ru
+For further assistance don't hesitate to ask for help in GitHub issues or on the blog: https://kaimi.io
