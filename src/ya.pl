@@ -284,7 +284,7 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 
 		@track_list_info = get_album_tracks_info($opt{album});
 
-		if($opt{track})
+		if(scalar @track_list_info > 0 && $opt{track})
 		{
 			info(INFO, 'Filtering single track: ' . $opt{track} . ' [' . $opt{album} . ']');
 			@track_list_info = grep
@@ -431,6 +431,7 @@ sub download_track
 
 	$whole_file = '';
 	$total_size = $request->headers->content_length;
+
 	info(DEBUG, 'File size from header: ' . $total_size);
 
 	$request = $ua->get($url, ':content_cb' => \&progress);
@@ -600,6 +601,12 @@ sub get_album_tracks_info
 
 	info(INFO, 'Album title: ' . $title);
 	info(INFO, 'Tracks total: ' . $json->{$parent}->{trackCount});
+
+	if($opt{mobile} && !$json->{$parent}->{availableForMobile})
+	{
+		info(ERROR, 'Album is not available via Mobile API');
+		return;
+	}
 
 	my @tracks = ();
 	for my $vol(@{$json->{$parent}->{volumes}})
