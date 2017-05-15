@@ -92,15 +92,13 @@ my %req_modules =
 $\ = NL;
 
 my @missing_modules;
-for(@{$req_modules{ALL}}, IS_WIN ? @{$req_modules{WIN}} : @{$req_modules{NIX}})
+for my $module(@{$req_modules{ALL}}, IS_WIN ? @{$req_modules{WIN}} : @{$req_modules{NIX}})
 {
 	# Suppress MP3::Tag deprecated regex and other warnings
-	eval "local \$SIG{'__WARN__'} = sub {}; require $_";
+	eval "local \$SIG{'__WARN__'} = sub {}; require $module";
 	if($@)
 	{
-		($_) = $@ =~ /locate (.+?)(?:\.pm)? in \@INC/;
-		$_ =~ s/\//::/g;
-		push @missing_modules, $_;
+		push @missing_modules, $module;
 	}
 }
 
