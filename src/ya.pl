@@ -107,7 +107,7 @@ for my $module(@{$req_modules{ALL}}, IS_WIN ? @{$req_modules{WIN}} : @{$req_modu
 if(@missing_modules)
 {
 	print 'Please, install this modules: ' . join ', ', @missing_modules;
-	exit;
+	exit(1);
 }
 
 # PAR issue workaround && different win* approach for Unicode output
@@ -199,13 +199,13 @@ my %opt = %{$opt};
 if( $opt{help} || ( !$opt{url} && !($opt{track} && $opt{album}) && !$opt{album} && !($opt{playlist} && $opt{kind}) )  )
 {
 	print $usage->text;
-	exit;
+	exit(0);
 }
 
 if($opt{dir} && !-d $opt{dir})
 {
 	info(ERROR, 'Please, specify an existing directory');
-	exit;
+	exit(1);
 }
 
 MP3::Tag->config('id3v23_unsync', 0);
@@ -269,9 +269,10 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 	info(INFO, 'Checking Yandex.Music availability');
 
 	my $request = $ua->get(TEST_URL);
-	if($request->code == 400)
+	if($request->code != 404)
 	{
 		info(ERROR, 'Yandex.Music is not available');
+		exit(1);
 	}
 	else
 	{
@@ -306,7 +307,7 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 	if(!@track_list_info)
 	{
 		info(ERROR, 'Can\'t get track list info');
-		exit;
+		exit(1);
 	}
 
 	for my $track_info_ref(@track_list_info)
