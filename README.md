@@ -7,7 +7,7 @@ Origin of the script is the following article: https://kaimi.io/2013/11/yandex-m
 # Usage
 
 ```bat
-ya.pl [-adkpt] [long options...]
+ya.pl [-adkptu] [long options...]
 	-p --playlist     playlist id to download
 	-k --kind         playlist kind (eg. ya-playlist, music-blog,
 	                  music-partners, etc.)
@@ -21,15 +21,21 @@ ya.pl [-adkpt] [long options...]
 	--include         download only tracks specified in file
 	--delay           delay between downloads (in seconds)
 	--mobile          use mobile API
+	--auth            authorization header (for HQ music if subscription
+	                  is active)
+	--bitrate         bitrate (eg. 64, 128, 192, 320)
+
+	Bitrate 320 is available only when subscription is active
+	and only via mobile API for now (be sure to specify Authorization header value)
 
 	--debug           print debug info during work
 	--help            print usage
 
 	--include and --exclude options use weak match i.e. ~/$term/
 
-	Example:        
+	Example:
 	ya.pl -p 123 -k ya-playlist
-	ya.pl -a 123   
+	ya.pl -a 123
 	ya.pl -a 123 -t 321
 	ya.pl -u https://music.yandex.ru/album/215690
 	ya.pl -u https://music.yandex.ru/album/215688/track/1710808
