@@ -18,7 +18,7 @@ use constant
 	YANDEX_BASE => 'https://music.yandex.ru',
 	MOBILE_YANDEX_BASE => 'https://api.music.yandex.net',
 	MD5_SALT => 'XGRlBW9FXlekgbPrRHuSiA',
-	MUSIC_INFO_REGEX => qr{var\s+Mu\s+=\s+(.+?);\s+</script>}is,
+	MUSIC_INFO_REGEX => qr{var\s+Mu\s*=\s*(.+?);\s*</script>}is,
 	DOWNLOAD_INFO_MASK => '/api/v1.5/handlers/api-jsonp.jsx?requestId=2&nc=%d&action=getTrackSrc&p=download-info/%s/2.mp3',
 	MOBILE_DOWNLOAD_INFO_MASK => '/tracks/%d/download-info',
 	DOWNLOAD_PATH_MASK => 'http://%s/get-mp3/%s/%s?track-id=%s&from=service-10-track&similarities-experiment=default',
@@ -167,20 +167,25 @@ else
 my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 (
 	basename(__FILE__).' %o',
-	['playlist|p:i',	'playlist id to download'],
-	['kind|k:s',		'playlist kind (eg. ya-playlist, music-blog, music-partners, etc.)'],
-	['album|a:i',		'album to download'],
-	['track|t:i',		'track to download (album id must be specified)'],
-	['url|u:s',			'download by URL'],
-	['dir|d:s',		'download path (current direcotry will be used by default)', {default => '.'}],
-	['proxy=s',		'HTTP-proxy (format: 1.2.3.4:8888)'],
-	['exclude=s',		'skip tracks specified in file'],
-	['include=s',		'download only tracks specified in file'],
-	['delay=i',			'delay between downloads (in seconds)', {default => 5}],
-	['mobile=i',			'use mobile API', {default => 1}],
+	['playlist|p:i',    'playlist id to download'],
+	['kind|k:s',        'playlist kind (eg. ya-playlist, music-blog, music-partners, etc.)'],
+	['album|a:i',       'album to download'],
+	['track|t:i',       'track to download (album id must be specified)'],
+	['url|u:s',         'download by URL'],
+	['dir|d:s',         'download path (current direcotry will be used by default)', {default => '.'}],
+	['proxy=s',         'HTTP-proxy (format: 1.2.3.4:8888)'],
+	['exclude=s',       'skip tracks specified in file'],
+	['include=s',       'download only tracks specified in file'],
+	['delay=i',         'delay between downloads (in seconds)', {default => 5}],
+	['mobile=i',        'use mobile API', {default => 1}],
+	['auth=s',          'authorization header (for HQ music if subscription is active)'],
+	['bitrate=i',       'bitrate (eg. 64, 128, 192, 320)', {default => 192}],
 	[],
-	['debug',		'print debug info during work'],
-	['help',		'print usage'],
+	['Bitrate 320 is available only when subscription is active'],
+	['and only via mobile API for now (be sure to specify Authorization header value)'],
+	[],
+	['debug',           'print debug info during work'],
+	['help',            'print usage'],
 	[],
 	['--include and --exclude options use weak match i.e. ~/$term/'],
 	[],
@@ -206,6 +211,20 @@ if($opt{dir} && !-d $opt{dir})
 {
 	info(ERROR, 'Please, specify an existing directory');
 	exit(1);
+}
+
+if($opt{bitrate} && $opt{bitrate} == 320)
+{
+	if(!$opt{auth})
+	{
+		info(ERROR, 'Please, specify Authorization header value for downloading HQ music');
+		exit(1);
+	}
+	if($opt{mobile} == 0)
+	{
+		info(ERROR, 'Specified bitrate is only available via mobile API');
+		exit(1);
+	}
 }
 
 MP3::Tag->config('id3v23_unsync', 0);
@@ -476,6 +495,8 @@ sub get_track_url
 			MOBILE_YANDEX_BASE.sprintf(MOBILE_DOWNLOAD_INFO_MASK, $track_id)
 			:
 			YANDEX_BASE.sprintf(DOWNLOAD_INFO_MASK, time, $storage_dir)
+		,
+		Authorization => ($opt{mobile} && $opt{auth}) ? $opt{auth} : ''
 	);
 	if(!$request->is_success)
 	{
@@ -503,15 +524,16 @@ sub get_track_url
 	if($opt{mobile})
 	{
 		my ($idx, $target_idx) = (0, -1);
-		my $bitrate = 0;
+		my $bitrate = $opt{bitrate};
 		for my $track_info(@{$json->{result}})
 		{
 			if($track_info->{codec} eq 'mp3')
 			{
-				if($track_info->{bitrateInKbps} > $bitrate)
+				if($track_info->{bitrateInKbps} == $bitrate)
 				{
 					$bitrate = $track_info->{bitrateInKbps};
 					$target_idx = $idx;
+					last;
 				}
 			}
 
@@ -539,11 +561,11 @@ sub get_track_url
 	{
 		%fields =
 		(
-			host => $json->{host},
-			path => $json->{path},
-			ts => $json->{ts},
-			region => $json->{region},
-			s => $json->{s}
+			host => $json->{host}[0],
+			path => $json->{path}[0],
+			ts => $json->{ts}[0],
+			region => $json->{region}[0],
+			s => $json->{s}[0]
 		);
 	}
 
