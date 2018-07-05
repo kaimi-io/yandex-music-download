@@ -41,6 +41,11 @@ use constant
 };
 use constant
 {
+	PLAYLIST_LIKE => 3,
+	PLAYLIST_LIKE_TITLE => 'Мне нравится'
+};
+use constant
+{
 	DEBUG => 'DEBUG',
 	ERROR => 'ERROR',
 	INFO => 'INFO',
@@ -684,7 +689,12 @@ sub get_playlist_tracks_info
 		return;
 	}
 
-	my $title =  $opt{mobile} ? $json->{result}->{title} : $json->{pageData}->{playlist}->{title};
+	my $title =  $opt{mobile}
+		?
+		( $opt{playlist} == PLAYLIST_LIKE ? PLAYLIST_LIKE_TITLE : $json->{result}->{title} )
+		:
+		$json->{pageData}->{playlist}->{title};
+
 	if(!$title)
 	{
 		info(DEBUG, 'Can\'t get playlist title');
