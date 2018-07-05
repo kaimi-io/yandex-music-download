@@ -36,7 +36,8 @@ use constant
 	URL_TRACK_REGEX => qr{music\.yandex\.\w+/album/(\d+)/track/(\d+)}is,
 	URL_PLAYLIST_REGEX => qr{music\.yandex\.\w+/users/(.+?)/playlists/(\d+)}is,
 	RESPONSE_LOG_PREFIX => 'log_',
-	TEST_URL => 'https://api.music.yandex.net/users/ya.playlist/playlists/1'
+	TEST_URL => 'https://api.music.yandex.net/users/ya.playlist/playlists/1',
+	RENAME_ERRORS_MAX => 5
 };
 use constant
 {
@@ -88,7 +89,7 @@ my %req_modules =
 (
 	NIX => [],
 	WIN => [ qw/Win32::API Win32API::File Win32::Console/ ],
-	ALL => [ qw/Mozilla::CA Digest::MD5 File::Copy File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent LWP::Protocol::https HTTP::Cookies HTML::Entities/ ]
+	ALL => [ qw/Mozilla::CA Digest::MD5 File::Copy File::Spec File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent LWP::Protocol::https HTTP::Cookies HTML::Entities/ ]
 );
 
 $\ = NL;
@@ -244,7 +245,10 @@ my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
 my @exclude = ();
 my @include = ();
 
-info(DEBUG, 'OS: ' . $^O . '; Path: ' . $^X . '; Version: ' . $^V);
+if($opt{debug})
+{
+	print_perl_info();
+}
 
 if($opt{proxy})
 {
@@ -428,7 +432,7 @@ sub fetch_track
 		info(ERROR, 'Failed to add MP3 tags for ' . $file_path);
 	}
 
-	my $target_path = $opt{dir} . '/' . $track_info_ref->{title} . FILE_SAVE_EXT;
+	my $target_path = File::Spec->catfile($opt{dir},  $track_info_ref->{title} . FILE_SAVE_EXT);
 	if(rename_track($file_path, $target_path))
 	{
 		info(INFO, $file_path . ' -> ' . $target_path);
@@ -891,10 +895,22 @@ sub rename_track
 {
 	my ($src_path, $dst_path) = @_;
 
-	my ($src_fh, $dst_fh, $is_open_success) = (undef, undef, 1);
+	my ($src_fh, $dst_fh, $is_open_success, $errors) = (undef, undef, 1, 0);
+
+	if(IS_WIN)
+	{
+		# Extend path limit to 32767
+		$dst_path = '\\\\?\\' . File::Spec->rel2abs($dst_path);
+	}
 
 	for(;;)
 	{
+		if($errors >= RENAME_ERRORS_MAX)
+		{
+			info(DEBUG, 'File manipulations failed');
+			last;
+		}
+
 		if(!$is_open_success)
 		{
 			close $src_fh if $src_fh;
@@ -908,6 +924,7 @@ sub rename_track
 		if(!$is_open_success)
 		{
 			info(DEBUG, 'Can\'t open src_path: ' . $src_path);
+			$errors++;
 			redo;
 		}
 
@@ -922,6 +939,7 @@ sub rename_track
 			if($^E && $^E != 183)
 			{
 				info(DEBUG, 'CreateFileW failed with: ' . $^E);
+				$errors++;
 				redo;
 			}
 
@@ -929,6 +947,7 @@ sub rename_track
 			if(!$is_open_success)
 			{
 				info(DEBUG, 'OsFHandleOpen failed with: ' . $!);
+				$errors++;
 				redo;
 			}
 		}
@@ -938,6 +957,7 @@ sub rename_track
 			if(!$is_open_success)
 			{
 				info(DEBUG, 'Can\'t open dst_path: ' . $dst_path);
+				$errors++;
 				redo;
 			}
 		}
@@ -946,6 +966,7 @@ sub rename_track
 		{
 			$is_open_success = 0;
 			info(DEBUG, 'File::Copy::copy failed with: ' . $!);
+			$errors++;
 			redo;
 		}
 
@@ -1082,4 +1103,9 @@ sub log_response
 	{
 		info(DEBUG, 'Failed to store response stored at ' . $log_filename);
 	}
+}
+
+sub print_perl_info
+{
+	info(DEBUG, 'OS: ' . $^O . '; Path: ' . $^X . '; Version: ' . $^V);
 }
