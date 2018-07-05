@@ -244,6 +244,8 @@ my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
 my @exclude = ();
 my @include = ();
 
+info(DEBUG, 'OS: ' . $^O . '; Path: ' . $^X . '; Version: ' . $^V);
+
 if($opt{proxy})
 {
 	$ua->proxy(['http', 'https'], 'http://' . $opt{proxy} . '/');
