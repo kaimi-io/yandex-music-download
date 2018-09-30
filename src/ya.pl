@@ -37,7 +37,8 @@ use constant
 	URL_PLAYLIST_REGEX => qr{music\.yandex\.\w+/users/(.+?)/playlists/(\d+)}is,
 	RESPONSE_LOG_PREFIX => 'log_',
 	TEST_URL => 'https://api.music.yandex.net/users/ya.playlist/playlists/1',
-	RENAME_ERRORS_MAX => 5
+	RENAME_ERRORS_MAX => 5,
+	AUTH_TOKEN_PREFIX => 'OAuth ',
 };
 use constant
 {
@@ -500,6 +501,16 @@ sub get_track_url
 	my $storage_dir = shift;
 
 	my $track_id = (split(/\./, $storage_dir))[-1];
+	my $auth_token = '';
+	if($opt{mobile} && $opt{auth})
+	{
+		if($opt{auth} !~ /${\(AUTH_TOKEN_PREFIX)}/i)
+		{
+			$auth_token = AUTH_TOKEN_PREFIX;
+		}
+		$auth_token .= $opt{auth};
+	}
+
 	my $request = $ua->get
 	(
 		$opt{mobile} ?
@@ -507,7 +518,7 @@ sub get_track_url
 			:
 			YANDEX_BASE.sprintf(DOWNLOAD_INFO_MASK, time, $storage_dir)
 		,
-		Authorization => ($opt{mobile} && $opt{auth}) ? $opt{auth} : ''
+		Authorization => $auth_token
 	);
 	if(!$request->is_success)
 	{
