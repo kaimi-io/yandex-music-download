@@ -45,21 +45,28 @@ ya.pl [-adkptu] [long options...]
 
 ## Dependencies
 
-##### Mozilla::CA
-
+### Linux
 ```
-sudo apt-get install perl-modules
-sudo cpan -i Mozilla::CA
+Digest::MD5
+File::Copy
+File::Spec
+File::Temp
+Getopt::Long::Descriptive
+HTML::Entities
+HTTP::Cookies
+JSON::PP
+LWP::Protocol::https
+LWP::UserAgent
+MP3::Tag
+Mozilla::CA
+Term::ANSIColor
 ```
-##### MP3::Tag
-
+### Windows
+Above and
 ```
-sudo apt-get install libmp3-tag-perl
-```
-##### Getopt::Long::Descriptive
-
-```
-sudo apt-get install libgetopt-long-descriptive-perl
+Win32::API
+Win32::Console
+Win32API::File
 ```
 
 For further assistance don't hesitate to ask for help in GitHub issues or on the blog: https://kaimi.io
