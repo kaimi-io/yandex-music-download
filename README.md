@@ -4,7 +4,7 @@ Yandex Music Downloader
 This is a simple command line Perl script for downloading music from Yandex Music (http://music.yandex.ru).
 Origin of the script is the following article: https://kaimi.io/2013/11/yandex-music-downloader/
 
-# Usage
+## Usage
 
 ```bat
 ya.pl [-adkptu] [long options...]
@@ -41,6 +41,25 @@ ya.pl [-adkptu] [long options...]
 	ya.pl -u https://music.yandex.ru/album/215688/track/1710808
 	ya.pl -u https://music.yandex.ru/users/ya.playlist/playlists/1257
 
+```
+
+## Dependencies
+
+##### Mozilla::CA
+
+```
+sudo apt-get install perl-modules
+sudo cpan -i Mozilla::CA
+```
+##### MP3::Tag
+
+```
+sudo apt-get install libmp3-tag-perl
+```
+##### Getopt::Long::Descriptive
+
+```
+sudo apt-get install libgetopt-long-descriptive-perl
 ```
 
 For further assistance don't hesitate to ask for help in GitHub issues or on the blog: https://kaimi.io
