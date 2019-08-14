@@ -191,6 +191,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['Bitrate 320 is available only when subscription is active'],
 	['and only via mobile API for now (be sure to specify Authorization header value)'],
 	[],
+	['link|l',          'do not fetch, only print links to the tracks'],
 	['debug',           'print debug info during work'],
 	['help',            'print usage'],
 	[],
@@ -385,12 +386,17 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 			next;
 		}
 
-		fetch_track($track_info_ref);
-
-		if($opt{delay} && $track_info_ref != $track_list_info[-1])
+		if($opt{link})
 		{
-			info(INFO, 'Waiting for ' . $opt{delay} . ' seconds');
-			sleep $opt{delay};
+			print(get_track_url($track_info_ref->{dir}));
+		} else {
+			fetch_track($track_info_ref);
+
+			if($opt{delay} && $track_info_ref != $track_list_info[-1])
+			{
+				info(INFO, 'Waiting for ' . $opt{delay} . ' seconds');
+				sleep $opt{delay};
+			}
 		}
 	}
 
