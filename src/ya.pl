@@ -1053,7 +1053,8 @@ sub info
 	# Actual terminal width detection?
 	$msg = sprintf('%-80s', $msg);
 
-	print $msg;
+	my $out = $type eq ERROR ? *STDERR : *STDOUT;
+	print $out $msg;
 }
 
 sub progress
