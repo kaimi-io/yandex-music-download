@@ -192,6 +192,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['and only via mobile API for now (be sure to specify Authorization header value)'],
 	[],
 	['link|l',          'do not fetch, only print links to the tracks'],
+	['silent|s',        'do not print informational messages'],
 	['debug',           'print debug info during work'],
 	['help',            'print usage'],
 	[],
@@ -1032,6 +1033,11 @@ sub create_json
 sub info
 {
 	my ($type, $msg) = @_;
+
+	if($opt{silent} && $type ne ERROR)
+	{
+		 return;
+	}
 
 	if($type eq DEBUG)
 	{
