@@ -7,6 +7,7 @@ RUN ["cpanm", "Mozilla::CA"]
 RUN ["cpanm", "LWP::UserAgent"]
 RUN ["cpanm", "HTTP::Cookies"]
 RUN ["cpanm", "HTML::Entities"]
+RUN ["cpanm", "Archive::Zip"]
 RUN ["cpanm", "MP3::Tag"]
 RUN ["cpanm", "Getopt::Long::Descriptive"]
 RUN apt-get -y  install libssl-dev
