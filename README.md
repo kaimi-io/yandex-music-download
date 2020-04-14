@@ -1,5 +1,6 @@
 Yandex Music Downloader
 =====================
+[![Perl](https://img.shields.io/badge/perl-green.svg)](https://www.perl.org/) [![License](https://img.shields.io/badge/license-MIT-red.svg)](https://raw.githubusercontent.com/kaimi-io/yandex-music-download/master/LICENSE)
 
 This is a simple command line Perl script for downloading music from Yandex Music (http://music.yandex.ru).
 Origin of the script is the following article: https://kaimi.io/2013/11/yandex-music-downloader/
