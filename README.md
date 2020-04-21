@@ -79,8 +79,10 @@ Otherwise:
 1. Download and install ActiveState Perl (https://www.activestate.com/products/perl/downloads/) or Strawberry Perl (http://strawberryperl.com/)
 2. Ensure, that Perl was added to system `PATH` environment variable
 3. From Windows command line run:
-`perl -v`
-It should output Perl version. If not, refer to your Perl distribution documentation about adding Perl to your `PATH` environment variable
+```perl -v```
+
+It should output Perl version. If not, refer to your Perl distribution documentation about adding Perl to your `PATH` environment variable.
+
 4. Install required modules (it can be done via PPM if you're using ActiveState Perl):
 ```bash
 cpan install Digest::MD5 File::Copy File::Spec File::Temp Getopt::Long::Descriptive HTML::Entities HTTP::Cookies JSON::PP LWP::Protocol::https LWP::UserAgent MP3::Tag Term::ANSIColor Mozilla::CA Win32::API Win32::Console Win32API::File
