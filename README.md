@@ -73,7 +73,7 @@ cd yandex-music-download/src
 perl ya.pl -h
 ```
 ### Windows
-With WSL (Windows Subsystem for Linux) installation will be similar to [Ubuntu / Debian](Ubuntu-/-Debian).
+With WSL (Windows Subsystem for Linux) installation will be similar to [Ubuntu / Debian](#ubuntu--debian).
 Otherwise:
 1. Download and install ActiveState Perl (https://www.activestate.com/products/perl/downloads/) or Strawberry Perl (http://strawberryperl.com/)
 2. Ensure, that Perl was added to system `PATH` environment variable
