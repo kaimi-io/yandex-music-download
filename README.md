@@ -67,6 +67,7 @@ perl ya.pl -h
 ```bash
 brew update
 brew install perl cpanminus git
+cpanm Digest::MD5 File::Copy File::Spec File::Temp Getopt::Long::Descriptive HTML::Entities HTTP::Cookies JSON::PP LWP::Protocol::https LWP::UserAgent MP3::Tag Term::ANSIColor Mozilla::CA
 
 git clone https://github.com/kaimi-io/yandex-music-download.git
 cd yandex-music-download/src
@@ -82,7 +83,7 @@ Otherwise:
 It should output Perl version. If not, refer to your Perl distribution documentation about adding Perl to your `PATH` environment variable
 4. Install required modules (it can be done via PPM if you're using ActiveState Perl):
 ```bash
-cpan install Digest::MD5 File::Copy File::Spec File::Temp Getopt::Long::Descriptive HTML::Entities HTTP::Cookies JSON::PP LWP::Protocol::https LWP::UserAgent MP3::Tag Mozilla::CA Term::ANSIColor Win32::API Win32::Console Win32API::File
+cpan install Digest::MD5 File::Copy File::Spec File::Temp Getopt::Long::Descriptive HTML::Entities HTTP::Cookies JSON::PP LWP::Protocol::https LWP::UserAgent MP3::Tag Term::ANSIColor Mozilla::CA Win32::API Win32::Console Win32API::File
 ```
 5. Download and unpack Yandex Music Downloader (https://github.com/kaimi-io/yandex-music-download/archive/master.zip)
 6. Run:
