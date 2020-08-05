@@ -538,6 +538,7 @@ sub get_track_url
 	if(!$json_data)
 	{
 		info(DEBUG, 'Can\'t parse JSON blob');
+		log_response($request);
 		return;
 	}
 
@@ -545,6 +546,7 @@ sub get_track_url
 	if(!$json)
 	{
 		info(DEBUG, 'Can\'t create json from data');
+		log_response($request);
 		return;
 	}
 
@@ -572,6 +574,7 @@ sub get_track_url
 		if($target_idx < 0)
 		{
 			info(DEBUG, 'Can\'t find track with proper format & bitrate');
+			log_response($request);
 			return;
 		}
 
