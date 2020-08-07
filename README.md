@@ -109,40 +109,55 @@ docker run --rm -v $(PWD):/root/ --name yamusic yandex-music-downloader:1.0 -d /
 
 ## Usage
 ```bat
-ya.pl [-adkptu] [long options...]
-	-p --playlist     playlist id to download
-	-k --kind         playlist kind (eg. ya-playlist, music-blog,
-	                  music-partners, etc.)
-	-a --album        album to download
-	-t --track        track to download (album id must be specified)
-	-u --url          download by URL
-	-d --dir          download path (current direcotry will be used by
-	                  default)
-	--proxy           HTTP-proxy (format: 1.2.3.4:8888)
-	--exclude         skip tracks specified in file
-	--include         download only tracks specified in file
-	--delay           delay between downloads (in seconds)
-	--mobile          use mobile API
-	--auth            authorization header (for HQ music if subscription
-	                  is active)
-	--bitrate         bitrate (eg. 64, 128, 192, 320)
+Yandex Music Downloader v1.0
 
-	Bitrate 320 is available only when subscription is active
-	and only via mobile API for now (be sure to specify Authorization header value)
+ya.pl [-adklpstu] [long options...]
+        -p[=INT] --playlist[=INT]  playlist id to download
+        -k[=STR] --kind[=STR]      playlist kind (eg. ya-playlist,
+                                   music-blog, music-partners, etc.)
+        -a[=INT] --album[=INT]     album to download
+        -t[=INT] --track[=INT]     track to download (album id must be
+                                   specified)
+        -u[=STR] --url[=STR]       download by URL
+        -d[=STR] --dir[=STR]       download path (current direcotry will be
+                                   used by default)
+        --proxy STR                HTTP-proxy (format: 1.2.3.4:8888)
+        --exclude STR              skip tracks specified in file
+        --include STR              download only tracks specified in file
+        --delay INT                delay between downloads (in seconds)
+        --mobile INT               use mobile API
+        --auth STR                 authorization header for mobile version
+                                   (OAuth...)
+        --cookie STR               authorization cookie for web version
+                                   (Session_id=...)
+        --bitrate INT              bitrate (eg. 64, 128, 192, 320)
 
-	--debug           print debug info during work
-	--help            print usage
+        Bitrate 320 is available only when
+        subscription is active
+        and only via mobile API for now (be sure
+        to specify Authorization header value)
 
-	--include and --exclude options use weak match i.e. ~/$term/
+        -l --link                  do not fetch, only print links to the
+                                   tracks
+        -s --silent                do not print informational messages
+        --debug                    print debug info during work
+        --help                     print usage
 
-	Example:
-	ya.pl -p 123 -k ya-playlist
-	ya.pl -a 123
-	ya.pl -a 123 -t 321
-	ya.pl -u https://music.yandex.ru/album/215690
-	ya.pl -u https://music.yandex.ru/album/215688/track/1710808
-	ya.pl -u https://music.yandex.ru/users/ya.playlist/playlists/1257
+        --include and --exclude options use weak
+        match i.e. ~/$term/
 
+        Example:
+        ya.pl -p 123 -k ya-playlist
+        ya.pl -a 123
+        ya.pl -a 123 -t 321
+        ya.pl -u
+        https://music.yandex.ru/album/215690
+        ya.pl -u
+        https://music.yandex.ru/album/215688/track/1710808
+        ya.pl -u
+        https://music.yandex.ru/users/ya.playlist/playlists/1257
+
+        © 2013-2020 by Kaimi (https://kaimi.io)
 ```
 
 ## FAQ
