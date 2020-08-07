@@ -18,14 +18,14 @@ use constant
 	YANDEX_BASE => 'https://music.yandex.ru',
 	MOBILE_YANDEX_BASE => 'https://api.music.yandex.net',
 	MD5_SALT => 'XGRlBW9FXlekgbPrRHuSiA',
-	MUSIC_INFO_REGEX => qr{var\s+Mu\s*=\s*(.+?);\s*</script>}is,
-	DOWNLOAD_INFO_MASK => '/api/v1.5/handlers/api-jsonp.jsx?requestId=2&nc=%d&action=getTrackSrc&p=download-info/%s/2.mp3',
+	DOWNLOAD_INFO_MASK => '/api/v2.1/handlers/track/%d:%d/web-album-track-track-main/download/m?external-domain=music.yandex.ru&overembed=no&__t=%d&hq=%d',
 	MOBILE_DOWNLOAD_INFO_MASK => '/tracks/%d/download-info',
-	DOWNLOAD_PATH_MASK => 'http://%s/get-mp3/%s/%s?track-id=%s&from=service-10-track&similarities-experiment=default',
-	PLAYLIST_INFO_MASK => '/users/%s/playlists/%d',
+	DOWNLOAD_PATH_MASK => 'https://%s/get-mp3/%s/%s?track-id=%s&from=service-10-track&similarities-experiment=default',
+	PLAYLIST_INFO_MASK => '/handlers/playlist.jsx?owner=%s&kinds=%d&light=true&madeFor=&withLikesCount=true&lang=ru&external-domain=music.yandex.ru&overembed=false&ncrnd=',
+	MOBILE_PLAYLIST_INFO_MASK => '/users/%s/playlists/%d',
 	PLAYLIST_REQ_PART => '{"userFeed":"old","similarities":"default","genreRadio":"new-ichwill-matrixnet6","recommendedArtists":"ichwill_similar_artists","recommendedTracks":"recommended_tracks_by_artist_from_history","recommendedAlbumsOfFavoriteGenre":"recent","recommendedSimilarArtists":"default","recommendedArtistsWithArtistsFromHistory":"force_recent","adv":"a","loserArtistsWithArtists":"off","ny2015":"no"}',
 	PLAYLIST_FULL_INFO => '/handlers/track-entries.jsx',
-	ALBUM_INFO_MASK => '/album/%d',
+	ALBUM_INFO_MASK => '/handlers/album.jsx?album=%d&lang=ru&external-domain=music.yandex.ru&overembed=false',
 	MOBILE_ALBUM_INFO_MASK => '/albums/%d/with-tracks',
 	FILE_SAVE_EXT => '.mp3',
 	ARTIST_TITLE_DELIM => ' - ',
@@ -39,6 +39,10 @@ use constant
 	TEST_URL => 'https://api.music.yandex.net/users/ya.playlist/playlists/1',
 	RENAME_ERRORS_MAX => 5,
 	AUTH_TOKEN_PREFIX => 'OAuth ',
+	HQ_BITRATE => '320',
+	PODCAST_TYPE => 'podcast',
+	VERSION => '1.0',
+	COPYRIGHT => '© 2013-2020 by Kaimi (https://kaimi.io)',
 };
 use constant
 {
@@ -173,6 +177,7 @@ else
 
 my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 (
+	'Yandex Music Downloader v' . VERSION . NL . NL .
 	basename(__FILE__).' %o',
 	['playlist|p:i',    'playlist id to download'],
 	['kind|k:s',        'playlist kind (eg. ya-playlist, music-blog, music-partners, etc.)'],
@@ -185,8 +190,9 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['include=s',       'download only tracks specified in file'],
 	['delay=i',         'delay between downloads (in seconds)', {default => 5}],
 	['mobile=i',        'use mobile API', {default => 1}],
-	['auth=s',          'authorization header (for HQ music if subscription is active)'],
-	['bitrate=i',       'bitrate (eg. 64, 128, 192, 320)', {default => 192}],
+	['auth=s',          'authorization header for mobile version (OAuth...)'],
+	['cookie=s',        'authorization cookie for web version (Session_id=...)'],
+	['bitrate=i',       'bitrate (eg. 64, 128, 192, 320)'],
 	[],
 	['Bitrate 320 is available only when subscription is active'],
 	['and only via mobile API for now (be sure to specify Authorization header value)'],
@@ -204,7 +210,9 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	[basename(__FILE__) . ' -a 123 -t 321'],
 	[basename(__FILE__) . ' -u https://music.yandex.ru/album/215690'],
 	[basename(__FILE__) . ' -u https://music.yandex.ru/album/215688/track/1710808'],
-	[basename(__FILE__) . ' -u https://music.yandex.ru/users/ya.playlist/playlists/1257']
+	[basename(__FILE__) . ' -u https://music.yandex.ru/users/ya.playlist/playlists/1257'],
+	[],
+	[COPYRIGHT]
 );
 
 # Get a modifiable options copy
@@ -216,31 +224,43 @@ if( $opt{help} || ( !$opt{url} && !($opt{track} && $opt{album}) && !$opt{album} 
 	exit(0);
 }
 
+if(!$opt{auth} && !$opt{cookie})
+{
+	info(ERROR, 'Please, specify either mobile app auth header value (--auth) or web version auth cookie (--cookie)');
+	info(ERROR, 'It is no longer possible to download full version of tracks without authentication');
+	exit(1);
+}
+
 if($opt{dir} && !-d $opt{dir})
 {
 	info(ERROR, 'Please, specify an existing directory');
 	exit(1);
 }
 
-if($opt{bitrate} && $opt{bitrate} == 320)
+MP3::Tag->config('id3v23_unsync', 0);
+# Fix for "Writing of ID3v2.4 is not fully supported (prohibited now via `write_v24')"
+MP3::Tag->config(write_v24 => 1);
+# Fix auth token format if required
+my $auth_token = '';
+if($opt{mobile} && $opt{auth})
 {
-	if(!$opt{auth})
+	if($opt{auth} !~ /${\(AUTH_TOKEN_PREFIX)}/i)
 	{
-		info(ERROR, 'Please, specify Authorization header value for downloading HQ music');
-		exit(1);
+		$auth_token = AUTH_TOKEN_PREFIX;
 	}
-	if($opt{mobile} == 0)
-	{
-		info(ERROR, 'Specified bitrate is only available via mobile API');
-		exit(1);
-	}
+	$auth_token .= $opt{auth};
 }
 
-MP3::Tag->config('id3v23_unsync', 0);
 my ($whole_file, $total_size);
 my $ua = LWP::UserAgent->new
 (
 	agent => $opt{mobile} ? MOBILE_AGENT : AGENT,
+	default_headers => HTTP::Headers->new
+	(
+		Authorization => $auth_token,
+		X_Retpath_Y => 1,
+		Cookie => $opt{cookie} ? $opt{cookie} : ''
+	),
 	cookie_jar => new HTTP::Cookies,
 	timeout => TIMEOUT,
 	ssl_opts =>
@@ -389,8 +409,10 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 
 		if($opt{link})
 		{
-			print(get_track_url($track_info_ref->{dir}));
-		} else {
+			print(get_track_url($track_info_ref));
+		}
+		else
+		{
 			fetch_track($track_info_ref);
 
 			if($opt{delay} && $track_info_ref != $track_list_info[-1])
@@ -418,7 +440,7 @@ sub fetch_track
 
 	info(INFO, 'Trying to fetch track: '.$track_info_ref->{title});
 
-	my $track_url = get_track_url($track_info_ref->{dir});
+	my $track_url = get_track_url($track_info_ref);
 	if(!$track_url)
 	{
 		info(ERROR, 'Can\'t get track url');
@@ -485,7 +507,7 @@ sub download_track
 	return unless $file_handle;
 
 	binmode $file_handle;
-	# autoflush
+	# Autoflush file contents
 	select((select($file_handle),$|=1)[0]);
 	{
 		local $\ = undef;
@@ -505,27 +527,20 @@ sub download_track
 
 sub get_track_url
 {
-	my $storage_dir = shift;
+	my $track_info_ref = shift;
+
+	my $storage_dir = $track_info_ref->{dir};
+	my $album_id = $track_info_ref->{album_id};
 
 	my $track_id = (split(/\./, $storage_dir))[-1];
-	my $auth_token = '';
-	if($opt{mobile} && $opt{auth})
-	{
-		if($opt{auth} !~ /${\(AUTH_TOKEN_PREFIX)}/i)
-		{
-			$auth_token = AUTH_TOKEN_PREFIX;
-		}
-		$auth_token .= $opt{auth};
-	}
-
+	my $is_hq = ($opt{bitrate} && ($opt{bitrate} eq HQ_BITRATE)) ? 1 : 0;
+	# Get track path information
 	my $request = $ua->get
 	(
 		$opt{mobile} ?
 			MOBILE_YANDEX_BASE.sprintf(MOBILE_DOWNLOAD_INFO_MASK, $track_id)
 			:
-			YANDEX_BASE.sprintf(DOWNLOAD_INFO_MASK, time, $storage_dir)
-		,
-		Authorization => $auth_token
+			YANDEX_BASE.sprintf(DOWNLOAD_INFO_MASK, $track_id, $album_id, time, $is_hq)
 	);
 	if(!$request->is_success)
 	{
@@ -550,19 +565,25 @@ sub get_track_url
 		return;
 	}
 
-
-	my %fields;
+	# Pick specified bitrate or highest available
+	my $url;
 	if($opt{mobile})
 	{
+		# Sort by available bitrate (highest first)
+		@{$json->{result}} = sort { $b->{bitrateInKbps} <=> $a->{bitrateInKbps} } @{$json->{result}};
+
 		my ($idx, $target_idx) = (0, -1);
-		my $bitrate = $opt{bitrate};
 		for my $track_info(@{$json->{result}})
 		{
 			if($track_info->{codec} eq 'mp3')
 			{
-				if($track_info->{bitrateInKbps} == $bitrate)
+				if($opt{bitrate} && $track_info->{bitrateInKbps} == $opt{bitrate})
 				{
-					$bitrate = $track_info->{bitrateInKbps};
+					$target_idx = $idx;
+					last;
+				}
+				elsif(!$opt{bitrate})
+				{
 					$target_idx = $idx;
 					last;
 				}
@@ -578,31 +599,26 @@ sub get_track_url
 			return;
 		}
 
-		$request = $ua->get(@{$json->{result}}[$target_idx]->{downloadInfoUrl});
-		if(!$request->is_success)
-		{
-			info(DEBUG, 'Request failed');
-			log_response($request);
-			return;
-		}
-
-		# No proper XML parsing cause it will break soon
-		%fields = ($request->content =~ /<(\w+)>([^<]+?)<\/\w+>/g);
+		$url = @{$json->{result}}[$target_idx]->{downloadInfoUrl};
 	}
 	else
 	{
-		%fields =
-		(
-			host => $json->{host}[0],
-			path => $json->{path}[0],
-			ts => $json->{ts}[0],
-			region => $json->{region}[0],
-			s => $json->{s}[0]
-		);
+		$url = $json->{src};
 	}
 
+	$request = $ua->get($url);
+	if(!$request->is_success)
+	{
+		info(DEBUG, 'Request failed');
+		log_response($request);
+		return;
+	}
+
+	# No proper XML parsing cause it will break soon
+	my %fields = ($request->content =~ /<(\w+)>([^<]+?)<\/\w+>/g);
+
 	my $hash = Digest::MD5::md5_hex(MD5_SALT . substr($fields{path}, 1) . $fields{s});
-	my $url = sprintf(DOWNLOAD_PATH_MASK, $fields{host}, $hash, $fields{ts}.$fields{path}, (split /\./, $storage_dir)[1]);
+	$url = sprintf(DOWNLOAD_PATH_MASK, $fields{host}, $hash, $fields{ts}.$fields{path}, (split /\./, $storage_dir)[1]);
 
 	info(DEBUG, 'Track url: ' . $url);
 
@@ -612,7 +628,6 @@ sub get_track_url
 sub get_album_tracks_info
 {
 	my $album_id = shift;
-
 
 	my $request = $ua->get
 	(
@@ -629,7 +644,7 @@ sub get_album_tracks_info
 	}
 
 
-	my ($json_data) = $opt{mobile} ? $request->content : ($request->content =~ MUSIC_INFO_REGEX);
+	my ($json_data) = $request->content;
 	if(!$json_data)
 	{
 		info(DEBUG, 'Can\'t parse JSON blob');
@@ -645,9 +660,10 @@ sub get_album_tracks_info
 		return;
 	}
 
-	my $parent = $opt{mobile} ? 'result' : 'pageData';
+	# "Rebase" JSON
+	$json = $opt{mobile} ? $json->{'result'} : $json;
 
-	my $title = $json->{$parent}->{title};
+	my $title = $json->{title};
 	if(!$title)
 	{
 		info(DEBUG, 'Can\'t get album title');
@@ -655,16 +671,16 @@ sub get_album_tracks_info
 	}
 
 	info(INFO, 'Album title: ' . $title);
-	info(INFO, 'Tracks total: ' . $json->{$parent}->{trackCount});
+	info(INFO, 'Tracks total: ' . $json->{trackCount});
 
-	if($opt{mobile} && !$json->{$parent}->{availableForMobile})
+	if($opt{mobile} && !$json->{availableForMobile})
 	{
 		info(ERROR, 'Album is not available via Mobile API');
 		return;
 	}
 
 	my @tracks = ();
-	for my $vol(@{$json->{$parent}->{volumes}})
+	for my $vol(@{$json->{volumes}})
 	{
 		my $track_number = 1;
 		for my $track(@{$vol})
@@ -683,7 +699,7 @@ sub get_playlist_tracks_info
 	my $request = $ua->get
 	(
 		$opt{mobile} ?
-			MOBILE_YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $opt{kind}, $playlist_id)
+			MOBILE_YANDEX_BASE.sprintf(MOBILE_PLAYLIST_INFO_MASK, $opt{kind}, $playlist_id)
 			:
 			YANDEX_BASE.sprintf(PLAYLIST_INFO_MASK, $opt{kind}, $playlist_id)
 	);
@@ -694,7 +710,7 @@ sub get_playlist_tracks_info
 		return;
 	}
 
-	my ($json_data) = $opt{mobile} ? $request->content : ($request->content =~ MUSIC_INFO_REGEX);
+	my ($json_data) = $request->content;
 	if(!$json_data)
 	{
 		info(DEBUG, 'Can\'t parse JSON blob');
@@ -714,7 +730,7 @@ sub get_playlist_tracks_info
 		?
 		( $opt{playlist} == PLAYLIST_LIKE ? PLAYLIST_LIKE_TITLE : $json->{result}->{title} )
 		:
-		$json->{pageData}->{playlist}->{title};
+		$json->{playlist}->{title};
 
 	if(!$title)
 	{
@@ -731,16 +747,16 @@ sub get_playlist_tracks_info
 			$opt{mobile} ?
 				$json->{result}->{trackCount}
 				:
-				$json->{pageData}->{playlist}->{trackCount}
+				$json->{playlist}->{trackCount}
 		)
 	);
 
 	my @tracks_info;
 
-	if(!$opt{mobile} && $json->{pageData}->{playlist}->{trackIds})
+	if(!$opt{mobile} && $json->{playlist}->{trackIds})
 	{
 		my @playlist_chunks;
-		my $tracks_ref = $json->{pageData}->{playlist}->{trackIds};
+		my $tracks_ref = $json->{playlist}->{trackIds};
 		my $sign = $json->{authData}->{user}->{sign};
 
 		push @playlist_chunks, [splice @{$tracks_ref}, 0, 150] while @{$tracks_ref};
@@ -798,7 +814,7 @@ sub get_playlist_tracks_info
 			$opt{mobile} ?
 				$json->{result}->{tracks}
 				:
-				$json->{pageData}->{playlist}->{tracks} 
+				$json->{playlist}->{tracks} 
 		};
 	}
 
@@ -811,19 +827,31 @@ sub create_track_entry
 
 	# Better detection algo?
 	my $is_part_of_album = scalar @{$track_info->{albums}} != 0;
-	my $is_various =
-		scalar @{$track_info->{artists}} > 1
-		||
-		($is_part_of_album && $track_info->{albums}->[0]->{artists}->[0]->{name} eq GENERIC_COLLECTION)
-	;
+
+	my $is_various;
+	if($track_info->{albums}->[0]->{metaType} ne PODCAST_TYPE)
+	{
+		$is_various =
+			scalar @{$track_info->{artists}} > 1
+			||
+			($is_part_of_album && $track_info->{albums}->[0]->{artists}->[0]->{name} eq GENERIC_COLLECTION)
+		;
+	}
 
 	# TALB - album title; TPE2 - album artist;
 	# APIC - album picture; TYER - year;
 	# TIT2 - song title; TPE1 - song artist;
 	# TCON - track genre; TRCK - track number
 	my %mp3_tags = ();
-
-	$mp3_tags{TPE1} = join ', ', map { $_->{name} } @{$track_info->{artists}};
+	# Special case for podcasts
+	if($track_info->{albums}->[0]->{metaType} eq PODCAST_TYPE)
+	{
+		$mp3_tags{TPE1} = $track_info->{albums}->[0]->{title};
+	}
+	else
+	{
+		$mp3_tags{TPE1} = join ', ', map { $_->{name} } @{$track_info->{artists}};
+	}
 	$mp3_tags{TIT2} = $track_info->{title};
 	# No track number info in JSON if fetching from anything but album
 	if($track_number)
@@ -841,7 +869,14 @@ sub create_track_entry
 	if($is_part_of_album)
 	{
 		$mp3_tags{TALB} = $track_info->{albums}->[0]->{title};
-		$mp3_tags{TPE2} = $is_various ? GENERIC_TITLE : $track_info->{albums}->[0]->{artists}->[0]->{name};
+		if($track_info->{albums}->[0]->{metaType} eq PODCAST_TYPE)
+		{
+			$mp3_tags{TPE2} = $mp3_tags{TALB};
+		}
+		else
+		{
+			$mp3_tags{TPE2} = $is_various ? GENERIC_TITLE : $track_info->{albums}->[0]->{artists}->[0]->{name};
+		}
 		# 'Dummy' cover for post-process
 		$mp3_tags{APIC} = $track_info->{albums}->[0]->{coverUri};
 		$mp3_tags{TYER} = $track_info->{albums}->[0]->{year};
@@ -852,6 +887,8 @@ sub create_track_entry
 	{
 		# Download path part
 		dir => $track_info->{storageDir},
+		# Album id
+		album_id => $track_info->{albums}->[0]->{id},
 		# MP3 tags
 		mp3tags => \%mp3_tags,
 		# Save As file name
