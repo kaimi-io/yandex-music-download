@@ -132,11 +132,6 @@ ya.pl [-adklpstu] [long options...]
                                    (Session_id=...)
         --bitrate INT              bitrate (eg. 64, 128, 192, 320)
 
-        Bitrate 320 is available only when
-        subscription is active
-        and only via mobile API for now (be sure
-        to specify Authorization header value)
-
         -l --link                  do not fetch, only print links to the
                                    tracks
         -s --silent                do not print informational messages
