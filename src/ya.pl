@@ -27,8 +27,15 @@ use constant
 	PLAYLIST_FULL_INFO => '/handlers/track-entries.jsx',
 	ALBUM_INFO_MASK => '/handlers/album.jsx?album=%d&lang=ru&external-domain=music.yandex.ru&overembed=false',
 	MOBILE_ALBUM_INFO_MASK => '/albums/%d/with-tracks',
+	FILE_NAME_PATTERN => '#artist - #title',
+	# For more details refer to 'create_track_entry' function
+	PATTERN_MP3TAGS_RELS =>
+	{
+		'number' => 'TRCK',
+		'artist' => 'TPE1',
+		'title' => 'TIT2'
+	},
 	FILE_SAVE_EXT => '.mp3',
-	ARTIST_TITLE_DELIM => ' - ',
 	COVER_RESOLUTION => '400x400',
 	GENERIC_COLLECTION => "\x{441}\x{431}\x{43e}\x{440}\x{43d}\x{438}\x{43a}",
 	GENERIC_TITLE => 'Various Artists',
@@ -39,6 +46,7 @@ use constant
 	TEST_URL => 'https://api.music.yandex.net/users/ya.playlist/playlists/1',
 	RENAME_ERRORS_MAX => 5,
 	AUTH_TOKEN_PREFIX => 'OAuth ',
+	COOKIE_PREFIX => 'Session_id=',
 	HQ_BITRATE => '320',
 	PODCAST_TYPE => 'podcast',
 	VERSION => '1.0',
@@ -189,10 +197,12 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['exclude=s',       'skip tracks specified in file'],
 	['include=s',       'download only tracks specified in file'],
 	['delay=i',         'delay between downloads (in seconds)', {default => 5}],
-	['mobile=i',        'use mobile API', {default => 1}],
+	['mobile=i',        'use mobile API', {default => 0}],
 	['auth=s',          'authorization header for mobile version (OAuth...)'],
 	['cookie=s',        'authorization cookie for web version (Session_id=...)'],
 	['bitrate=i',       'bitrate (eg. 64, 128, 192, 320)'],
+	['pattern=s',       'track naming pattern', {default => FILE_NAME_PATTERN}],
+	['Available placeholders: #number, #artist, #title'],
 	[],
 	['link|l',          'do not fetch, only print links to the tracks'],
 	['silent|s',        'do not print informational messages'],
@@ -228,6 +238,18 @@ if(!$opt{auth} && !$opt{cookie})
 	exit(1);
 }
 
+if($opt{mobile} && !$opt{auth} && $opt{cookie})
+{
+	info(ERROR, 'Please, provide --auth instead of --cookie for Mobile API');
+	exit(1);
+}
+
+if(!$opt{mobile} && $opt{auth} && !$opt{cookie})
+{
+	info(ERROR, 'Please, provide --cookie instead of --auth for Web API');
+	exit(1);
+}
+
 if($opt{dir} && !-d $opt{dir})
 {
 	info(ERROR, 'Please, specify an existing directory');
@@ -237,7 +259,7 @@ if($opt{dir} && !-d $opt{dir})
 MP3::Tag->config('id3v23_unsync', 0);
 # Fix for "Writing of ID3v2.4 is not fully supported (prohibited now via `write_v24')"
 MP3::Tag->config(write_v24 => 1);
-# Fix auth token format if required
+# Fix auth token and cookie format if required
 my $auth_token = '';
 if($opt{mobile} && $opt{auth})
 {
@@ -248,6 +270,16 @@ if($opt{mobile} && $opt{auth})
 	$auth_token .= $opt{auth};
 }
 
+my $cookie = '';
+if(!$opt{mobile} && $opt{cookie})
+{
+	if($opt{cookie} !~ /${\(COOKIE_PREFIX)}/i)
+	{
+		$cookie = COOKIE_PREFIX;
+	}
+	$cookie .= $opt{cookie};
+}
+
 my ($whole_file, $total_size);
 my $ua = LWP::UserAgent->new
 (
@@ -256,7 +288,7 @@ my $ua = LWP::UserAgent->new
 	(
 		Authorization => $auth_token,
 		X_Retpath_Y => 1,
-		Cookie => $opt{cookie} ? $opt{cookie} : ''
+		Cookie => $cookie
 	),
 	cookie_jar => new HTTP::Cookies,
 	timeout => TIMEOUT,
@@ -880,6 +912,13 @@ sub create_track_entry
 		$mp3_tags{TCON} = $track_info->{albums}->[0]->{genre};
 	}
 
+	# Substitute placeholders within a path name
+	my $track_filename = $opt{pattern};
+	while (my ($pattern, $tag_id) = each %{&PATTERN_MP3TAGS_RELS})
+	{
+		$track_filename =~ s/\#$pattern/$mp3_tags{$tag_id}/gi;
+	}
+
 	return
 	{
 		# Download path part
@@ -888,8 +927,8 @@ sub create_track_entry
 		album_id => $track_info->{albums}->[0]->{id},
 		# MP3 tags
 		mp3tags => \%mp3_tags,
-		# Save As file name
-		title => $mp3_tags{TPE1} . ARTIST_TITLE_DELIM . $mp3_tags{TIT2}
+		# 'Save As' file name
+		title => $track_filename
 	};
 }
 
