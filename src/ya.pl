@@ -711,10 +711,9 @@ sub get_album_tracks_info
 	my @tracks = ();
 	for my $vol(@{$json->{volumes}})
 	{
-		my $track_number = 1;
 		for my $track(@{$vol})
 		{
-			push @tracks, create_track_entry($track, $track_number++);
+			push @tracks, create_track_entry($track, 0);
 		}
 	}
 
@@ -781,6 +780,7 @@ sub get_playlist_tracks_info
 	);
 
 	my @tracks_info;
+	my $track_number = 1;
 
 	if(!$opt{mobile} && $json->{playlist}->{trackIds})
 	{
@@ -822,7 +822,7 @@ sub get_playlist_tracks_info
 			push @tracks_info,
 				map
 				{
-					create_track_entry($_, 0)
+					create_track_entry($_, $track_number++)
 				} @{ $json };
 		}
 	}
@@ -836,7 +836,7 @@ sub get_playlist_tracks_info
 					$_->{track}
 					:
 					$_
-				, 0
+				, $track_number++
 			)
 		} @
 		{ 
@@ -887,7 +887,11 @@ sub create_track_entry
 	{
 		$mp3_tags{TRCK} = $track_number;
 	}
-	
+	else
+	{
+		$mp3_tags{TRCK} = $track_info->{albums}->[0]->{trackPosition}->{index};
+	}
+
 	# Append track postfix (like remix) if present
 	if(exists $track_info->{version})
 	{
