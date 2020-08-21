@@ -25,7 +25,7 @@ use constant
 	MOBILE_PLAYLIST_INFO_MASK => '/users/%s/playlists/%d',
 	PLAYLIST_REQ_PART => '{"userFeed":"old","similarities":"default","genreRadio":"new-ichwill-matrixnet6","recommendedArtists":"ichwill_similar_artists","recommendedTracks":"recommended_tracks_by_artist_from_history","recommendedAlbumsOfFavoriteGenre":"recent","recommendedSimilarArtists":"default","recommendedArtistsWithArtistsFromHistory":"force_recent","adv":"a","loserArtistsWithArtists":"off","ny2015":"no"}',
 	PLAYLIST_FULL_INFO => '/handlers/track-entries.jsx',
-	ALBUM_INFO_MASK => '/handlers/album.jsx?album=%d&lang=ru&external-domain=music.yandex.ru&overembed=false',
+	ALBUM_INFO_MASK => '/api/v2.1/handlers/album/%d?external-domain=music.yandex.ru&overembed=no&__t=%d',
 	MOBILE_ALBUM_INFO_MASK => '/albums/%d/with-tracks',
 	FILE_NAME_PATTERN => '#artist - #title',
 	# For more details refer to 'create_track_entry' function
@@ -663,7 +663,7 @@ sub get_album_tracks_info
 		$opt{mobile} ?
 			MOBILE_YANDEX_BASE.sprintf(MOBILE_ALBUM_INFO_MASK, $album_id)
 			:
-			YANDEX_BASE.sprintf(ALBUM_INFO_MASK, $album_id)
+			YANDEX_BASE.sprintf(ALBUM_INFO_MASK, $album_id, time)
 	);
 	if(!$request->is_success)
 	{
