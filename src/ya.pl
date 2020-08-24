@@ -13,8 +13,8 @@ use constant
 {
 	NL => IS_WIN ? "\015\012" : "\012",
 	TIMEOUT => 5,
-	AGENT => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0',
-	MOBILE_AGENT => 'Dalvik/2.1.0 (Linux; U; Android 5.0; Google Nexus 4 - 5.0.0 - API 21 - 768x1280 Build/LRX21M)',
+	AGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.135 Safari/537.36',
+	MOBILE_AGENT => 'Dalvik/10.1.0 (Linux; U; Android 10.0; Google Pixel 4 - 10.0.0 - API 29 - 768x1280 Build/LRX29M)',
 	YANDEX_BASE => 'https://music.yandex.ru',
 	MOBILE_YANDEX_BASE => 'https://api.music.yandex.net',
 	MD5_SALT => 'XGRlBW9FXlekgbPrRHuSiA',
@@ -372,7 +372,7 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 			info(INFO, 'Filtering single track: ' . $opt{track} . ' [' . $opt{album} . ']');
 			@track_list_info = grep
 			(
-				(split(/\./, $_->{dir}))[-1] eq $opt{track}
+				$_->{track_id} eq $opt{track}
 				,
 				@track_list_info
 			);
@@ -561,7 +561,7 @@ sub get_track_url
 	my $storage_dir = $track_info_ref->{dir};
 	my $album_id = $track_info_ref->{album_id};
 
-	my $track_id = (split(/\./, $storage_dir))[-1];
+	my $track_id = $track_info_ref->{track_id};
 	my $is_hq = ($opt{bitrate} && ($opt{bitrate} eq HQ_BITRATE)) ? 1 : 0;
 	# Get track path information
 	my $request = $ua->get
@@ -647,7 +647,7 @@ sub get_track_url
 	my %fields = ($request->content =~ /<(\w+)>([^<]+?)<\/\w+>/g);
 
 	my $hash = Digest::MD5::md5_hex(MD5_SALT . substr($fields{path}, 1) . $fields{s});
-	$url = sprintf(DOWNLOAD_PATH_MASK, $fields{host}, $hash, $fields{ts}.$fields{path}, (split /\./, $storage_dir)[1]);
+	$url = sprintf(DOWNLOAD_PATH_MASK, $fields{host}, $hash, $fields{ts}.$fields{path}, $track_id);
 
 	info(DEBUG, 'Track url: ' . $url);
 
@@ -929,6 +929,8 @@ sub create_track_entry
 		dir => $track_info->{storageDir},
 		# Album id
 		album_id => $track_info->{albums}->[0]->{id},
+		# Track id
+		track_id => $track_info->{id},
 		# MP3 tags
 		mp3tags => \%mp3_tags,
 		# 'Save As' file name
