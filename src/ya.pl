@@ -424,15 +424,9 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 			next;
 		}
 
-
 		if(!$track_info_ref->{title})
 		{
 			info(ERROR, 'Track with non-existent title. Skipping...');
-			next;
-		}
-		if(!$track_info_ref->{dir})
-		{
-			info(ERROR, 'Track with non-existent path (deleted?). Skipping...');
 			next;
 		}
 
@@ -558,9 +552,7 @@ sub get_track_url
 {
 	my $track_info_ref = shift;
 
-	my $storage_dir = $track_info_ref->{dir};
 	my $album_id = $track_info_ref->{album_id};
-
 	my $track_id = $track_info_ref->{track_id};
 	my $is_hq = ($opt{bitrate} && ($opt{bitrate} eq HQ_BITRATE)) ? 1 : 0;
 	# Get track path information
@@ -713,7 +705,10 @@ sub get_album_tracks_info
 	{
 		for my $track(@{$vol})
 		{
-			push @tracks, create_track_entry($track, 0);
+			if(!$track->{error})
+			{
+				push @tracks, create_track_entry($track, 0);
+			}
 		}
 	}
 
@@ -823,7 +818,7 @@ sub get_playlist_tracks_info
 				map
 				{
 					create_track_entry($_, $track_number++)
-				} @{ $json };
+				} grep { !$_->{error} } @{ $json };
 		}
 	}
 	else
@@ -838,7 +833,9 @@ sub get_playlist_tracks_info
 					$_
 				, $track_number++
 			)
-		} @
+		}
+		grep { !$_->{error} }
+		@
 		{ 
 			$opt{mobile} ?
 				$json->{result}->{tracks}
@@ -925,8 +922,6 @@ sub create_track_entry
 
 	return
 	{
-		# Download path part
-		dir => $track_info->{storageDir},
 		# Album id
 		album_id => $track_info->{albums}->[0]->{id},
 		# Track id
