@@ -304,6 +304,7 @@ my @include = ();
 
 if($opt{debug})
 {
+	info(DEBUG, 'Yandex Music Downloader v' . VERSION . NL . NL);
 	print_perl_info();
 }
 
