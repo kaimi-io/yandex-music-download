@@ -290,7 +290,10 @@ my $ua = LWP::UserAgent->new
 		X_Retpath_Y => 1,
 		Cookie => $cookie
 	),
-	cookie_jar => new HTTP::Cookies,
+	cookie_jar => HTTP::Cookies->new
+	(
+		hide_cookie2 => 1
+	),
 	timeout => TIMEOUT,
 	ssl_opts =>
 	{
