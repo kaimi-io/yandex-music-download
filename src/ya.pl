@@ -49,7 +49,7 @@ use constant
 	COOKIE_PREFIX => 'Session_id=',
 	HQ_BITRATE => '320',
 	PODCAST_TYPE => 'podcast',
-	VERSION => '1.0',
+	VERSION => '1.1',
 	COPYRIGHT => '© 2013-2020 by Kaimi (https://kaimi.io)',
 };
 use constant
