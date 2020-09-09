@@ -104,12 +104,12 @@ perl ya.pl -h
 git clone https://github.com/kaimi-io/yandex-music-download.git
 cd yandex-music-download
 docker build --tag yandex-music-downloader:1.0 .
-docker run --init --rm -v $(PWD):/root/ --name yamusic yandex-music-downloader:1.0 -d /root -u https://music.yandex.ru/album/215688/track/1710808
+docker run --init --rm -v $(PWD):/root/ --name yamusic yandex-music-downloader:1.0 -d /root --cookie "Session_id=..." -u https://music.yandex.ru/album/215688/track/1710808
 ```
 
 ## Usage
 ```bat
-Yandex Music Downloader v1.0
+Yandex Music Downloader v1.1
 
 ya.pl [-adklpstu] [long options...]
         -p[=INT] --playlist[=INT]  playlist id to download
@@ -160,14 +160,14 @@ ya.pl [-adklpstu] [long options...]
 
 ## FAQ
 ### What is the cause for "[ERROR] Yandex.Music is not available"?
-Currently Yandex Music is available only for Russia and CIS countries. For other countries you should either acquire paid subscription and use ```--auth``` parameter or use it through proxy (```--proxy``` parameter) from one of those countries.
+Currently Yandex Music is available only for Russia and CIS countries. For other countries you should either acquire paid subscription or use it through proxy (```--proxy``` parameter) from one of those countries.
 
 ## Contribute
 If you want to help make Yandex Music Downloader better the easiest thing you can do is to report issues and feature requests. Or you can help in development.
 
 ## License
-Yandex Music Downloader Copyright © 2013-2020 by Kaimi (Sergey Belov) - https://kaimi.io
+Yandex Music Downloader Copyright © 2013-2020 by Kaimi (Sergey Belov) - https://kaimi.io.
 
 Yandex Music Downloader is free software: you can redistribute it and/or modify it under the terms of the Massachusetts Institute of Technology (MIT) License.
 
-You should have received a copy of the MIT License along with Yandex Music Downloader. If not, see [MIT License](LICENSE)
+You should have received a copy of the MIT License along with Yandex Music Downloader. If not, see [MIT License](LICENSE).
