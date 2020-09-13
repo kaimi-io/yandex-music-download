@@ -307,8 +307,7 @@ my @include = ();
 
 if($opt{debug})
 {
-	info(DEBUG, 'Yandex Music Downloader v' . VERSION . NL . NL);
-	print_perl_info();
+	print_debug_info();
 }
 
 if($opt{proxy})
@@ -1220,7 +1219,11 @@ sub log_response
 	}
 }
 
-sub print_perl_info
+sub print_debug_info
 {
+	info(DEBUG, 'Yandex Music Downloader v' . VERSION . NL . NL);
 	info(DEBUG, 'OS: ' . $^O . '; Path: ' . $^X . '; Version: ' . $^V);
+	
+	info(DEBUG,  'Cookie: ' . $opt{cookie}) if $opt{cookie};
+	info(DEBUG,  'Auth: ' . $opt{auth}) if $opt{auth};
 }
