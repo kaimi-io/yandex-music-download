@@ -630,6 +630,7 @@ sub get_track_url
 		$url = $json->{src};
 	}
 
+	$url = 'https:' . $url unless $url =~ /^https:/;
 	$request = $ua->get($url);
 	if(!$request->is_success)
 	{
