@@ -65,7 +65,7 @@ cd yandex-music-download/src
 perl ya.pl -h
 ```
 ### MacOS
-1. Install brew (https://brew.sh/)
+1. Install brew (https://brew.sh/).
 2. Run:
 ```bash
 brew update
@@ -79,8 +79,8 @@ perl ya.pl -h
 ### Windows
 With WSL (Windows Subsystem for Linux) installation will be similar to [Ubuntu / Debian](#ubuntu--debian).
 Otherwise:
-1. Download and install ActiveState Perl (https://www.activestate.com/products/perl/downloads/) or Strawberry Perl (http://strawberryperl.com/)
-2. Ensure, that Perl was added to system `PATH` environment variable
+1. Download and install ActiveState Perl (https://www.activestate.com/products/perl/downloads/) or Strawberry Perl (http://strawberryperl.com/).
+2. Ensure, that Perl was added to system `PATH` environment variable.
 3. From Windows command line run:
 ```perl -v```. It should output Perl version. If not, refer to your Perl distribution documentation about adding Perl to your `PATH` environment variable.
 
@@ -88,7 +88,7 @@ Otherwise:
 ```bash
 cpan install Digest::MD5 File::Copy File::Spec File::Temp Getopt::Long::Descriptive HTML::Entities HTTP::Cookies JSON::PP LWP::Protocol::https LWP::UserAgent MP3::Tag Term::ANSIColor Mozilla::CA Win32::API Win32::Console Win32API::File
 ```
-5. Download and unpack Yandex Music Downloader (https://github.com/kaimi-io/yandex-music-download/archive/master.zip)
+5. Download and unpack Yandex Music Downloader (https://github.com/kaimi-io/yandex-music-download/archive/master.zip).
 6. Run:
 ```bash
 cd yandex-music-download/src
@@ -96,7 +96,7 @@ perl ya.pl -h
 ```
 
 ### Docker
-1. Install Docker (https://docs.docker.com/get-docker/)
+1. Install Docker (https://docs.docker.com/get-docker/).
 2. Run:
 ```bash
 git clone https://github.com/kaimi-io/yandex-music-download.git
