@@ -8,7 +8,7 @@ Yandex Music Downloader
 ![Yandex Music Downloader usage](https://github.com/kaimi-io/yandex-music-download/blob/master/usage.gif?raw=true)
 
 Simple command line Perl script for downloading music from Yandex Music (http://music.yandex.ru).
-Origin of the script is the following article: https://kaimi.io/2013/11/yandex-music-downloader/
+Origin of the script is the following article: https://kaimi.io/2013/11/yandex-music-downloader/.
 
 ## Contents
 - [Requirements](#Requirements)
@@ -82,9 +82,7 @@ Otherwise:
 1. Download and install ActiveState Perl (https://www.activestate.com/products/perl/downloads/) or Strawberry Perl (http://strawberryperl.com/)
 2. Ensure, that Perl was added to system `PATH` environment variable
 3. From Windows command line run:
-```perl -v```
-
-It should output Perl version. If not, refer to your Perl distribution documentation about adding Perl to your `PATH` environment variable.
+```perl -v```. It should output Perl version. If not, refer to your Perl distribution documentation about adding Perl to your `PATH` environment variable.
 
 4. Install required modules (it can be done via PPM if you're using ActiveState Perl):
 ```bash
@@ -160,13 +158,13 @@ ya.pl [-adklpstu] [long options...]
 
 ## FAQ
 ### What is the cause for "[ERROR] Yandex.Music is not available"?
-Currently Yandex Music is available only for Russia and CIS countries. For other countries you should either acquire paid subscription or use it through proxy (```--proxy``` parameter) from one of those countries.
+Currently Yandex Music is available only for Russia and CIS countries. For other countries you should either acquire paid subscription or use it through proxy (```--proxy``` parameter) from one of those countries. Thus it is possible to download from any country if you have an active Yandex.Music service subscription (https://music.yandex.ru/pay).
 
 ## Contribute
 If you want to help make Yandex Music Downloader better the easiest thing you can do is to report issues and feature requests. Or you can help in development.
 
 ## License
-Yandex Music Downloader Copyright © 2013-2020 by Kaimi (Sergey Belov) - https://kaimi.io.
+Yandex Music Downloader Copyright © 2013-2021 by Kaimi (Sergey Belov) - https://kaimi.io.
 
 Yandex Music Downloader is free software: you can redistribute it and/or modify it under the terms of the Massachusetts Institute of Technology (MIT) License.
 
