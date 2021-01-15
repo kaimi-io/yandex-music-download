@@ -207,7 +207,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['link|l',          'do not fetch, only print links to the tracks'],
 	['silent|s',        'do not print informational messages'],
 	['debug',           'print debug info during work'],
-	['help',            'print usage'],
+	['help|h',          'print usage'],
 	[],
 	['--include and --exclude options use weak match i.e. ~/$term/'],
 	[],
