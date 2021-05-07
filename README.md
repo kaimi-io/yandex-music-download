@@ -102,7 +102,7 @@ perl ya.pl -h
 git clone https://github.com/kaimi-io/yandex-music-download.git
 cd yandex-music-download
 docker build --tag yandex-music-downloader:1.0 .
-docker run --init --rm -v $(PWD):/root/ --name yamusic yandex-music-downloader:1.0 -d /root --cookie "Session_id=..." -u https://music.yandex.ru/album/215688/track/1710808
+docker run --init --rm -v ${PWD}:/root/ --name yamusic yandex-music-downloader:1.0 -d /root --cookie "Session_id=..." -u https://music.yandex.ru/album/215688/track/1710808
 ```
 
 ## Usage
