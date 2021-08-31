@@ -107,9 +107,9 @@ docker run --init --rm -v ${PWD}:/root/ --name yamusic yandex-music-downloader:1
 
 ## Usage
 ```bat
-Yandex Music Downloader v1.1
+Yandex Music Downloader v1.2
 
-ya.pl [-adklpstu] [long options...]
+ya.pl [-adhklpstu] [long options...]
         -p[=INT] --playlist[=INT]  playlist id to download
         -k[=STR] --kind[=STR]      playlist kind (eg. ya-playlist,
                                    music-blog, music-partners, etc.)
@@ -131,29 +131,26 @@ ya.pl [-adklpstu] [long options...]
         --bitrate INT              bitrate (eg. 64, 128, 192, 320)
         --pattern STR              track naming pattern
         Available placeholders: #number, #artist,
-        #title
+        #title                   
 
         -l --link                  do not fetch, only print links to the
                                    tracks
         -s --silent                do not print informational messages
         --debug                    print debug info during work
-        --help                     print usage
+        -h --help                  print usage
 
         --include and --exclude options use weak
-        match i.e. ~/$term/
+        match i.e. ~/$term/      
 
-        Example:
+        Example:                 
         ya.pl -p 123 -k ya-playlist
-        ya.pl -a 123
-        ya.pl -a 123 -t 321
-        ya.pl -u
-        https://music.yandex.ru/album/215690
-        ya.pl -u
-        https://music.yandex.ru/album/215688/track/1710808
-        ya.pl -u
-        https://music.yandex.ru/users/ya.playlist/playlists/1257
+        ya.pl -a 123             
+        ya.pl -a 123 -t 321      
+        ya.pl -u https://music.yandex.ru/album/215690 --cookie ...
+        ya.pl -u https://music.yandex.ru/album/215688/track/1710808 --auth ...
+        ya.pl -u https://music.yandex.ru/users/ya.playlist/playlists/1257 --cookie ...
 
-        © 2013-2020 by Kaimi (https://kaimi.io)
+        © 2013-2021 by Kaimi (https://kaimi.io)
 ```
 
 ## FAQ

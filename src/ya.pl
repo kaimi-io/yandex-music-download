@@ -49,8 +49,8 @@ use constant
 	COOKIE_PREFIX => 'Session_id=',
 	HQ_BITRATE => '320',
 	PODCAST_TYPE => 'podcast',
-	VERSION => '1.1',
-	COPYRIGHT => '© 2013-2020 by Kaimi (https://kaimi.io)',
+	VERSION => '1.2',
+	COPYRIGHT => '© 2013-2021 by Kaimi (https://kaimi.io)',
 };
 use constant
 {
@@ -215,9 +215,9 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	[basename(__FILE__) . ' -p 123 -k ya-playlist'],
 	[basename(__FILE__) . ' -a 123'],
 	[basename(__FILE__) . ' -a 123 -t 321'],
-	[basename(__FILE__) . ' -u https://music.yandex.ru/album/215690'],
-	[basename(__FILE__) . ' -u https://music.yandex.ru/album/215688/track/1710808'],
-	[basename(__FILE__) . ' -u https://music.yandex.ru/users/ya.playlist/playlists/1257'],
+	[basename(__FILE__) . ' -u https://music.yandex.ru/album/215690 --cookie ...'],
+	[basename(__FILE__) . ' -u https://music.yandex.ru/album/215688/track/1710808 --auth ...'],
+	[basename(__FILE__) . ' -u https://music.yandex.ru/users/ya.playlist/playlists/1257 --cookie ...'],
 	[],
 	[COPYRIGHT]
 );
