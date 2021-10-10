@@ -350,7 +350,7 @@ if($opt{url})
 if($opt{album} || ($opt{playlist} && $opt{kind}))
 {
 	my @track_list_info;
-
+=pod
 	info(INFO, 'Checking Yandex.Music availability');
 
 	my $request = $ua->get(TEST_URL);
@@ -363,7 +363,7 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 	{
 		info(OK, 'Yandex.Music is available')
 	}
-
+=cut
 	if($opt{album})
 	{
 		info(INFO, 'Fetching album info: ' . $opt{album});
