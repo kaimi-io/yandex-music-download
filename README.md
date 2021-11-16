@@ -35,6 +35,7 @@ Origin of the script is the following article: https://kaimi.io/2013/11/yandex-m
   * File::Copy
   * File::Spec
   * File::Temp
+  * File::Util
   * Getopt::Long::Descriptive
   * HTML::Entities
   * HTTP::Cookies
@@ -70,7 +71,7 @@ perl ya.pl -h
 ```bash
 brew update
 brew install perl cpanminus git
-cpanm Digest::MD5 File::Copy File::Spec File::Temp Getopt::Long::Descriptive HTML::Entities HTTP::Cookies JSON::PP LWP::Protocol::https LWP::UserAgent MP3::Tag Term::ANSIColor Mozilla::CA
+cpanm Digest::MD5 File::Copy File::Spec File::Temp File::Util Getopt::Long::Descriptive HTML::Entities HTTP::Cookies JSON::PP LWP::Protocol::https LWP::UserAgent MP3::Tag Term::ANSIColor Mozilla::CA
 
 git clone https://github.com/kaimi-io/yandex-music-download.git
 cd yandex-music-download/src
@@ -86,7 +87,7 @@ Otherwise:
 
 4. Install required modules (it can be done via PPM if you're using ActiveState Perl):
 ```bash
-cpan install Digest::MD5 File::Copy File::Spec File::Temp Getopt::Long::Descriptive HTML::Entities HTTP::Cookies JSON::PP LWP::Protocol::https LWP::UserAgent MP3::Tag Term::ANSIColor Mozilla::CA Win32::API Win32::Console Win32API::File
+cpan install Digest::MD5 File::Copy File::Spec File::Temp File::Util Getopt::Long::Descriptive HTML::Entities HTTP::Cookies JSON::PP LWP::Protocol::https LWP::UserAgent MP3::Tag Term::ANSIColor Mozilla::CA Win32::API Win32::Console Win32API::File
 ```
 5. Download and unpack Yandex Music Downloader (https://github.com/kaimi-io/yandex-music-download/archive/master.zip).
 6. Run:
@@ -130,8 +131,15 @@ ya.pl [-adhklpstu] [long options...]
                                    (Session_id=...)
         --bitrate INT              bitrate (eg. 64, 128, 192, 320)
         --pattern STR              track naming pattern
+        --path STR                 path pattern
+
         Available placeholders: #number, #artist,
-        #title                   
+        #title, #album, #year
+
+        Path pattern will be used in addition to
+        the download path directory
+
+        Example path pattern: #artist/#album-#year
 
         -l --link                  do not fetch, only print links to the
                                    tracks

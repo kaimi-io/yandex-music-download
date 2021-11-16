@@ -18,7 +18,7 @@ use constant
 	YANDEX_BASE => 'https://music.yandex.ru',
 	MOBILE_YANDEX_BASE => 'https://api.music.yandex.net',
 	MD5_SALT => 'XGRlBW9FXlekgbPrRHuSiA',
-	DOWNLOAD_INFO_MASK => '/api/v2.1/handlers/track/%d:%d/web-album-track-track-main/download/m?external-domain=music.yandex.ru&overembed=no&__t=%d&hq=%d',
+	DOWNLOAD_INFO_MASK => '/api/v2.1/handlers/track/%d:%d/web-album_track-track-track-main/download/m?external-domain=music.yandex.ru&overembed=no&__t=%d&hq=%d',
 	MOBILE_DOWNLOAD_INFO_MASK => '/tracks/%d/download-info',
 	DOWNLOAD_PATH_MASK => 'https://%s/get-mp3/%s/%s?track-id=%s&from=service-10-track&similarities-experiment=default',
 	PLAYLIST_INFO_MASK => '/handlers/playlist.jsx?owner=%s&kinds=%d&light=true&madeFor=&withLikesCount=true&lang=ru&external-domain=music.yandex.ru&overembed=false&ncrnd=',
@@ -28,12 +28,15 @@ use constant
 	ALBUM_INFO_MASK => '/api/v2.1/handlers/album/%d?external-domain=music.yandex.ru&overembed=no&__t=%d',
 	MOBILE_ALBUM_INFO_MASK => '/albums/%d/with-tracks',
 	FILE_NAME_PATTERN => '#artist - #title',
+	DEFAULT_PERMISSIONS => 755,
 	# For more details refer to 'create_track_entry' function
 	PATTERN_MP3TAGS_RELS =>
 	{
 		'number' => 'TRCK',
 		'artist' => 'TPE1',
-		'title' => 'TIT2'
+		'title' => 'TIT2',
+		'album' => 'TALB',
+		'year' => 'TYER',
 	},
 	FILE_SAVE_EXT => '.mp3',
 	COVER_RESOLUTION => '400x400',
@@ -48,6 +51,7 @@ use constant
 	AUTH_TOKEN_PREFIX => 'OAuth ',
 	COOKIE_PREFIX => 'Session_id=',
 	HQ_BITRATE => '320',
+	DEFAULT_CODEC => 'mp3',
 	PODCAST_TYPE => 'podcast',
 	VERSION => '1.2',
 	COPYRIGHT => '© 2013-2021 by Kaimi (https://kaimi.io)',
@@ -107,7 +111,7 @@ my %req_modules =
 (
 	NIX => [],
 	WIN => [ qw/Win32::API Win32API::File Win32::Console/ ],
-	ALL => [ qw/Mozilla::CA Digest::MD5 File::Copy File::Spec File::Temp MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent LWP::Protocol::https HTTP::Cookies HTML::Entities/ ]
+	ALL => [ qw/Mozilla::CA Digest::MD5 File::Copy File::Spec File::Temp File::Util MP3::Tag JSON::PP Getopt::Long::Descriptive Term::ANSIColor LWP::UserAgent LWP::Protocol::https HTTP::Cookies HTML::Entities/ ]
 );
 
 $\ = NL;
@@ -202,7 +206,12 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['cookie=s',        'authorization cookie for web version (Session_id=...)'],
 	['bitrate=i',       'bitrate (eg. 64, 128, 192, 320)'],
 	['pattern=s',       'track naming pattern', {default => FILE_NAME_PATTERN}],
-	['Available placeholders: #number, #artist, #title'],
+	[],
+	['Available placeholders: #number, #artist, #title, #album, #year'],
+	[],
+	['Path pattern will be used in addition to the download path directory'],
+	[],
+	['Example path pattern: #artist/#album-#year'],
 	[],
 	['link|l',          'do not fetch, only print links to the tracks'],
 	['silent|s',        'do not print informational messages'],
@@ -493,7 +502,20 @@ sub fetch_track
 		info(ERROR, 'Failed to add MP3 tags for ' . $file_path);
 	}
 
-	my $target_path = File::Spec->catfile($opt{dir},  $track_info_ref->{title} . FILE_SAVE_EXT);
+	my $target_path = $opt{dir};
+	if($opt{path})
+	{
+		$target_path = File::Spec->catdir($target_path, $track_info_ref->{storage_path});
+	}
+
+	my $file_util = File::Util->new();
+	if(!-d $file_util->make_dir($target_path => oct DEFAULT_PERMISSIONS => {if_not_exists => 1}))
+	{
+		info(ERROR, 'Failed to create: ' . $target_path);
+		return;
+	}
+
+	$target_path = File::Spec->catfile($target_path,  $track_info_ref->{title} . FILE_SAVE_EXT);
 	if(rename_track($file_path, $target_path))
 	{
 		info(INFO, $file_path . ' -> ' . $target_path);
@@ -599,7 +621,7 @@ sub get_track_url
 		my ($idx, $target_idx) = (0, -1);
 		for my $track_info(@{$json->{result}})
 		{
-			if($track_info->{codec} eq 'mp3')
+			if($track_info->{codec} eq DEFAULT_CODEC)
 			{
 				if($opt{bitrate} && $track_info->{bitrateInKbps} == $opt{bitrate})
 				{
@@ -917,11 +939,13 @@ sub create_track_entry
 		$mp3_tags{TCON} = $track_info->{albums}->[0]->{genre};
 	}
 
-	# Substitute placeholders within a path name
+	# Substitute placeholders within a track name and a path name
 	my $track_filename = $opt{pattern};
+	my $storage_path = $opt{path};
 	while (my ($pattern, $tag_id) = each %{&PATTERN_MP3TAGS_RELS})
 	{
 		$track_filename =~ s/\#$pattern/$mp3_tags{$tag_id}/gi;
+		$storage_path =~ s/\#$pattern/$mp3_tags{$tag_id}/gi;
 	}
 
 	return
@@ -933,7 +957,9 @@ sub create_track_entry
 		# MP3 tags
 		mp3tags => \%mp3_tags,
 		# 'Save As' file name
-		title => $track_filename
+		title => $track_filename,
+		# 'Save As' directory
+		storage_path => $storage_path,
 	};
 }
 
