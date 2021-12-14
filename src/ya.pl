@@ -206,6 +206,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['cookie=s',        'authorization cookie for web version (Session_id=...)'],
 	['bitrate=i',       'bitrate (eg. 64, 128, 192, 320)'],
 	['pattern=s',       'track naming pattern', {default => FILE_NAME_PATTERN}],
+	['path=s',          'path saving pattern', {default => ''}],
 	[],
 	['Available placeholders: #number, #artist, #title, #album, #year'],
 	[],
