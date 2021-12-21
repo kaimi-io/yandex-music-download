@@ -882,7 +882,12 @@ sub create_track_entry
 	my $is_part_of_album = scalar @{$track_info->{albums}} != 0;
 
 	my $is_various;
-	if($track_info->{albums}->[0]->{metaType} ne PODCAST_TYPE)
+	if
+	(
+		exists $track_info->{albums}->[0]->{metaType}
+		&&
+		$track_info->{albums}->[0]->{metaType} ne PODCAST_TYPE
+	)
 	{
 		$is_various =
 			scalar @{$track_info->{artists}} > 1
