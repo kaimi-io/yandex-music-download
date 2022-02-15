@@ -53,8 +53,8 @@ use constant
 	HQ_BITRATE => '320',
 	DEFAULT_CODEC => 'mp3',
 	PODCAST_TYPE => 'podcast',
-	VERSION => '1.2',
-	COPYRIGHT => '© 2013-2021 by Kaimi (https://kaimi.io)',
+	VERSION => '1.3',
+	COPYRIGHT => '© 2013-2022 by Kaimi (https://kaimi.io)',
 };
 use constant
 {

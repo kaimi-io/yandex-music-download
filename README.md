@@ -158,7 +158,7 @@ ya.pl [-adhklpstu] [long options...]
         ya.pl -u https://music.yandex.ru/album/215688/track/1710808 --auth ...
         ya.pl -u https://music.yandex.ru/users/ya.playlist/playlists/1257 --cookie ...
 
-        © 2013-2021 by Kaimi (https://kaimi.io)
+        © 2013-2022 by Kaimi (https://kaimi.io)
 ```
 
 ## FAQ
@@ -169,7 +169,7 @@ Currently Yandex Music is available only for Russia and CIS countries. For other
 If you want to help make Yandex Music Downloader better the easiest thing you can do is to report issues and feature requests. Or you can help in development.
 
 ## License
-Yandex Music Downloader Copyright © 2013-2021 by Kaimi (Sergey Belov) - https://kaimi.io.
+Yandex Music Downloader Copyright © 2013-2022 by Kaimi (Sergey Belov) - https://kaimi.io.
 
 Yandex Music Downloader is free software: you can redistribute it and/or modify it under the terms of the Massachusetts Institute of Technology (MIT) License.
 
