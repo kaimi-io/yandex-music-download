@@ -98,11 +98,18 @@ perl ya.pl -h
 
 ### Docker
 1. Install Docker (https://docs.docker.com/get-docker/).
-2. Run:
+2. Pull image from Docker Hub (https://hub.docker.com/r/ka1mi/yandex-music-downloader):
+```bash
+docker pull ka1mi/yandex-music-downloader:latest
+```
+3. Or build it:
 ```bash
 git clone https://github.com/kaimi-io/yandex-music-download.git
 cd yandex-music-download
 docker build --tag yandex-music-downloader:1.0 .
+```
+4. Run:
+```bash
 docker run --init --rm -v ${PWD}:/root/ --name yamusic yandex-music-downloader:1.0 -d /root --cookie "Session_id=..." -u https://music.yandex.ru/album/215688/track/1710808
 ```
 
