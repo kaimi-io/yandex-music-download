@@ -1,8 +1,8 @@
-FROM ubuntu:18.04
-ENV DEBIAN_FRONTEND=noninteractive LANG=en_US.UTF-8 LC_ALL=C.UTF-8 LANGUAGE=en_US.UTF-8
-RUN apt-get update
-RUN apt-get -y install perl cpanminus make
-RUN apt-get -y install libwww-perl liblwp-protocol-https-perl libhttp-cookies-perl libhtml-parser-perl libmp3-tag-perl libgetopt-long-descriptive-perl libarchive-zip-perl libfile-util-perl
-RUN ["cpanm", "Mozilla::CA"]
+FROM alpine:latest
+ENV LANG=en_US.UTF-8 LC_ALL=C.UTF-8 LANGUAGE=en_US.UTF-8
+RUN apk --update add perl perl-app-cpanminus make unzip
+RUN apk add perl-libwww perl-lwp-protocol-https perl-http-cookies perl-html-parser perl-getopt-long-descriptive perl-archive-zip \
+    --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing/
+RUN ["cpanm", "MP3::Tag", "File::Util"]
 COPY src /src
 ENTRYPOINT [ "/src/ya.pl" ]
