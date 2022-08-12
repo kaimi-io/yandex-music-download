@@ -53,7 +53,7 @@ use constant
 	HQ_BITRATE => '320',
 	DEFAULT_CODEC => 'mp3',
 	PODCAST_TYPE => 'podcast',
-	VERSION => '1.3',
+	VERSION => '1.4',
 	COPYRIGHT => '© 2013-2022 by Kaimi (https://kaimi.io)',
 };
 use constant
@@ -197,6 +197,7 @@ my ($opt, $usage) = Getopt::Long::Descriptive::describe_options
 	['track|t:i',       'track to download (album id must be specified)'],
 	['url|u:s',         'download by URL'],
 	['dir|d:s',         'download path (current direcotry will be used by default)', {default => '.'}],
+	['skip-existing',   'skip downloading tracks that already exist on the specified path'],
 	['proxy=s',         'HTTP-proxy (format: 1.2.3.4:8888)'],
 	['exclude=s',       'skip tracks specified in file'],
 	['include=s',       'download only tracks specified in file'],
@@ -416,6 +417,12 @@ if($opt{album} || ($opt{playlist} && $opt{kind}))
 				last;
 			}
 		}
+
+		if($opt{skip_existing} && track_file_exists($track_info_ref))
+		{
+			$skip = 1;
+		}
+
 		if($skip)
 		{
 			info(INFO, 'Skipping: ' . $track_info_ref->{title});
@@ -503,20 +510,15 @@ sub fetch_track
 		info(ERROR, 'Failed to add MP3 tags for ' . $file_path);
 	}
 
-	my $target_path = $opt{dir};
-	if($opt{path})
-	{
-		$target_path = File::Spec->catdir($target_path, $track_info_ref->{storage_path});
-	}
-
-	my $file_util = File::Util->new();
-	if(!-d $file_util->make_dir($target_path => oct DEFAULT_PERMISSIONS => {if_not_exists => 1}))
+	my $target_path = create_storage_path($track_info_ref);
+	if(!$target_path)
 	{
 		info(ERROR, 'Failed to create: ' . $target_path);
 		return;
 	}
 
 	$target_path = File::Spec->catfile($target_path,  $track_info_ref->{title} . FILE_SAVE_EXT);
+
 	if(rename_track($file_path, $target_path))
 	{
 		info(INFO, $file_path . ' -> ' . $target_path);
@@ -525,6 +527,44 @@ sub fetch_track
 	{
 		info(ERROR, $file_path . ' -> ' . $target_path);
 	}
+}
+
+sub create_storage_path
+{
+	my $track_info_ref = shift;
+
+	my $target_path = get_storage_path($track_info_ref);
+
+	my $file_util = File::Util->new();
+	if(!-d $file_util->make_dir($target_path => oct DEFAULT_PERMISSIONS => {if_not_exists => 1}))
+	{
+		return;
+	}
+
+	return $target_path;
+}
+
+sub track_file_exists
+{
+	my $track_info_ref = shift;
+
+	my $target_path = get_storage_path($track_info_ref);
+	$target_path = File::Spec->catfile($target_path,  $track_info_ref->{title} . FILE_SAVE_EXT);
+
+	return -e $target_path;
+}
+
+sub get_storage_path
+{
+	my $track_info_ref = shift;
+
+	my $target_path = $opt{dir};
+	if($opt{path})
+	{
+		$target_path = File::Spec->catdir($target_path, $track_info_ref->{storage_path});
+	}
+
+	return $target_path;
 }
 
 sub download_track

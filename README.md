@@ -115,7 +115,7 @@ docker run --init --rm -v ${PWD}:/root/ --name yamusic yandex-music-downloader:1
 
 ## Usage
 ```bat
-Yandex Music Downloader v1.2
+Yandex Music Downloader v1.4
 
 ya.pl [-adhklpstu] [long options...]
         -p[=INT] --playlist[=INT]  playlist id to download
@@ -127,6 +127,8 @@ ya.pl [-adhklpstu] [long options...]
         -u[=STR] --url[=STR]       download by URL
         -d[=STR] --dir[=STR]       download path (current direcotry will be
                                    used by default)
+        --skip-existing            skip downloading tracks that already exist
+                                   on the specified path
         --proxy STR                HTTP-proxy (format: 1.2.3.4:8888)
         --exclude STR              skip tracks specified in file
         --include STR              download only tracks specified in file
@@ -138,7 +140,7 @@ ya.pl [-adhklpstu] [long options...]
                                    (Session_id=...)
         --bitrate INT              bitrate (eg. 64, 128, 192, 320)
         --pattern STR              track naming pattern
-        --path STR                 path pattern
+        --path STR                 path saving pattern
 
         Available placeholders: #number, #artist,
         #title, #album, #year
@@ -155,15 +157,19 @@ ya.pl [-adhklpstu] [long options...]
         -h --help                  print usage
 
         --include and --exclude options use weak
-        match i.e. ~/$term/      
+        match i.e. ~/$term/
 
-        Example:                 
+        Example:
         ya.pl -p 123 -k ya-playlist
-        ya.pl -a 123             
-        ya.pl -a 123 -t 321      
-        ya.pl -u https://music.yandex.ru/album/215690 --cookie ...
-        ya.pl -u https://music.yandex.ru/album/215688/track/1710808 --auth ...
-        ya.pl -u https://music.yandex.ru/users/ya.playlist/playlists/1257 --cookie ...
+        ya.pl -a 123
+        ya.pl -a 123 -t 321
+        ya.pl -u
+        https://music.yandex.ru/album/215690
+        --cookie ...
+        ya.pl -u
+        https://music.yandex.ru/album/215688/track/1710808 --auth ...
+        ya.pl -u
+        https://music.yandex.ru/users/ya.playlist/playlists/1257 --cookie ...
 
         © 2013-2022 by Kaimi (https://kaimi.io)
 ```
