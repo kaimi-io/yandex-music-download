@@ -12,9 +12,9 @@ use constant IS_WIN => $^O eq 'MSWin32';
 use constant
 {
 	NL => IS_WIN ? "\015\012" : "\012",
-	TIMEOUT => 5,
-	AGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.135 Safari/537.36',
-	MOBILE_AGENT => 'Dalvik/10.1.0 (Linux; U; Android 10.0; Google Pixel 4 - 10.0.0 - API 29 - 768x1280 Build/LRX29M)',
+	TIMEOUT => 10,
+	AGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
+	MOBILE_AGENT => 'Mozilla/5.0 (Linux; Android 13; Pixel 7 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Mobile Safari/537.36',
 	YANDEX_BASE => 'https://music.yandex.ru',
 	MOBILE_YANDEX_BASE => 'https://api.music.yandex.net',
 	MD5_SALT => 'XGRlBW9FXlekgbPrRHuSiA',
@@ -25,8 +25,9 @@ use constant
 	MOBILE_PLAYLIST_INFO_MASK => '/users/%s/playlists/%d',
 	PLAYLIST_REQ_PART => '{"userFeed":"old","similarities":"default","genreRadio":"new-ichwill-matrixnet6","recommendedArtists":"ichwill_similar_artists","recommendedTracks":"recommended_tracks_by_artist_from_history","recommendedAlbumsOfFavoriteGenre":"recent","recommendedSimilarArtists":"default","recommendedArtistsWithArtistsFromHistory":"force_recent","adv":"a","loserArtistsWithArtists":"off","ny2015":"no"}',
 	PLAYLIST_FULL_INFO => '/handlers/track-entries.jsx',
-	ALBUM_INFO_MASK => '/handlers/album.jsx?album=%d&lang=ru&external-domain=music.yandex.ru&overembed=false&ncrnd=%d',
+	ALBUM_INFO_MASK => '/api/v2.1/handlers/album/%d?external-domain=music.yandex.ru&overembed=no&__t=%d',
 	MOBILE_ALBUM_INFO_MASK => '/albums/%d/with-tracks',
+	LYRICS_MASK => '/handlers/track.jsx?track=%d:%d&lang=ru&external-domain=music.yandex.ru&overembed=false&ncrnd=%d',
 	FILE_NAME_PATTERN => '#artist - #title',
 	DEFAULT_PERMISSIONS => 755,
 	# For more details refer to 'create_track_entry' function
@@ -53,7 +54,7 @@ use constant
 	HQ_BITRATE => '320',
 	DEFAULT_CODEC => 'mp3',
 	PODCAST_TYPE => 'podcast',
-	VERSION => '1.4',
+	VERSION => '1.5',
 	COPYRIGHT => '© 2013-2022 by Kaimi (https://kaimi.io)',
 };
 use constant
@@ -267,39 +268,20 @@ if($opt{dir} && !-d $opt{dir})
 	exit(1);
 }
 
-MP3::Tag->config('id3v23_unsync', 0);
 # Fix for "Writing of ID3v2.4 is not fully supported (prohibited now via `write_v24')"
-MP3::Tag->config(write_v24 => 1);
-# Fix auth token and cookie format if required
-my $auth_token = '';
-if($opt{mobile} && $opt{auth})
-{
-	if($opt{auth} !~ /${\(AUTH_TOKEN_PREFIX)}/i)
-	{
-		$auth_token = AUTH_TOKEN_PREFIX;
-	}
-	$auth_token .= $opt{auth};
-}
+MP3::Tag->config
+(
+	id3v23_unsync => 0,
+	write_v24 => 1,
+	decode_encoding_v2 => 'UTF-8'
+);
 
-my $cookie = '';
-if(!$opt{mobile} && $opt{cookie})
-{
-	if($opt{cookie} !~ /${\(COOKIE_PREFIX)}/i)
-	{
-		$cookie = COOKIE_PREFIX;
-	}
-	$cookie .= $opt{cookie};
-}
-
-my ($whole_file, $total_size);
 my $ua = LWP::UserAgent->new
 (
 	agent => $opt{mobile} ? MOBILE_AGENT : AGENT,
 	default_headers => HTTP::Headers->new
 	(
-		Authorization => $auth_token,
-		X_Retpath_Y => 1,
-		Cookie => $cookie
+		X_Retpath_Y => 1
 	),
 	cookie_jar => HTTP::Cookies->new
 	(
@@ -310,8 +292,37 @@ my $ua = LWP::UserAgent->new
 	{
 		verify_hostname => $opt{debug} ? 0 : 1,
 		SSL_verify_mode => $opt{debug} ? IO::Socket::SSL->SSL_VERIFY_NONE : IO::Socket::SSL->SSL_VERIFY_PEER,
-	}
+	},
+	send_te => 0
 );
+
+# Fix auth token and cookie format if required
+my $auth_token = '';
+if($opt{mobile} && $opt{auth})
+{
+	if($opt{auth} !~ /${\(AUTH_TOKEN_PREFIX)}/i)
+	{
+		$auth_token = AUTH_TOKEN_PREFIX;
+	}
+	$auth_token .= $opt{auth};
+
+	$ua->default_header(Authorization => $auth_token);
+}
+
+my $cookie = '';
+if(!$opt{mobile} && $opt{cookie})
+{
+	if($opt{cookie} !~ /${\(COOKIE_PREFIX)}/i)
+	{
+		$cookie = COOKIE_PREFIX;
+	}
+	$cookie .= $opt{cookie};
+
+	$ua->default_header(Cookie => $cookie);
+}
+
+my ($whole_file, $total_size);
+
 my $json_decoder = JSON::PP->new->utf8->pretty->allow_nonref->allow_singlequote;
 my @exclude = ();
 my @include = ();
@@ -500,6 +511,7 @@ sub fetch_track
 	info(OK, 'Temporary saved track at '.$file_path);
 
 	fetch_album_cover($track_info_ref->{mp3tags});
+	fetch_track_lyrics($track_info_ref);
 
 	if(write_mp3_tags($file_path, $track_info_ref->{mp3tags}))
 	{
@@ -940,6 +952,7 @@ sub create_track_entry
 	# APIC - album picture; TYER - year;
 	# TIT2 - song title; TPE1 - song artist;
 	# TCON - track genre; TRCK - track number
+	# USLT - unsychronised lyrics
 	my %mp3_tags = ();
 	# Special case for podcasts
 	if($track_info->{albums}->[0]->{metaType} eq PODCAST_TYPE)
@@ -1050,7 +1063,7 @@ sub fetch_album_cover
 	my $cover_url = $mp3tags->{APIC};
 	if(!$cover_url)
 	{
-		info(DEBUG, 'Empty cover url');
+		info(DEBUG, 'Empty cover URL');
 		return;
 	}
 
@@ -1058,7 +1071,7 @@ sub fetch_album_cover
 	$cover_url =~ s/%%/${\(COVER_RESOLUTION)}/;
 	$cover_url = 'https://' . $cover_url;
 
-	info(DEBUG, 'Cover url: ' . $cover_url);
+	info(DEBUG, 'Cover URL: ' . $cover_url);
 
 	my $request = $ua->get($cover_url);
 	if(!$request->is_success)
@@ -1070,6 +1083,47 @@ sub fetch_album_cover
 	}
 
 	$mp3tags->{APIC} = [chr(0x0), 'image/jpg', chr(0x0), 'Cover (front)', $request->content];
+}
+
+sub fetch_track_lyrics
+{
+	my $track_info_ref = shift;
+
+	my $mp3tags = $track_info_ref->{mp3tags};
+	my $lyrics_url = YANDEX_BASE.sprintf(LYRICS_MASK, $track_info_ref->{track_id}, $track_info_ref->{album_id}, time);
+
+	info(DEBUG, 'Lyrics URL: ' . $lyrics_url);
+
+	my $request = $ua->get($lyrics_url);
+	if(!$request->is_success)
+	{
+		info(DEBUG, 'Request failed');
+		log_response($request);
+		return;
+	}
+
+	my ($json_data) = $request->content;
+	if(!$json_data)
+	{
+		info(DEBUG, 'Can\'t parse JSON blob');
+		log_response($request);
+		return;
+	}
+
+	my $json = create_json($json_data);
+	if(!$json)
+	{
+		info(DEBUG, 'Can\'t create json from data');
+		log_response($request);
+		return;
+	}
+
+	if($json->{lyricsAvailable})
+	{
+		my $lyrics = $json->{lyric}->[0]->{fullLyrics};
+		# Encoding flag explanation: $03 UTF-8 [UTF-8]
+		$mp3tags->{USLT} = [3, 'eng', undef, $lyrics];
+	}
 }
 
 sub rename_track
