@@ -269,12 +269,9 @@ if($opt{dir} && !-d $opt{dir})
 }
 
 # Fix for "Writing of ID3v2.4 is not fully supported (prohibited now via `write_v24')"
-MP3::Tag->config
-(
-	id3v23_unsync => 0,
-	write_v24 => 1,
-	decode_encoding_v2 => 'UTF-8'
-);
+MP3::Tag->config(write_v24 => 1);
+MP3::Tag->config(id3v23_unsync => 0);
+MP3::Tag->config(decode_encoding_v2 => 'UTF-8');
 
 my $ua = LWP::UserAgent->new
 (
