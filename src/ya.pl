@@ -55,7 +55,7 @@ use constant
 	DEFAULT_CODEC => 'mp3',
 	PODCAST_TYPE => 'podcast',
 	VERSION => '1.5',
-	COPYRIGHT => '© 2013-2022 by Kaimi (https://kaimi.io)',
+	COPYRIGHT => '© 2013-2023 by Kaimi (https://kaimi.io)',
 };
 use constant
 {
