@@ -1,6 +1,5 @@
 Yandex Music Downloader
 =====================
-[![Perl](https://img.shields.io/badge/perl-green.svg)](https://www.perl.org/) [![License](https://img.shields.io/badge/license-MIT-red.svg)](https://raw.githubusercontent.com/kaimi-io/yandex-music-download/master/LICENSE)
 
 [![Telegram](https://img.shields.io/badge/Telegram--lightgrey?logo=telegram&style=social)](https://t.me/kaimi_io)
 [![Twitter](https://img.shields.io/twitter/follow/kaimi_io?style=social)](https://twitter.com/kaimi_io)
@@ -9,20 +8,6 @@ Yandex Music Downloader
 
 Simple command line Perl script for downloading music from Yandex Music (http://music.yandex.ru).
 Origin of the script is the following article: https://kaimi.io/2013/11/yandex-music-downloader/.
-
-## Contents
-- [Requirements](#Requirements)
-  - [Environment](#Environment)
-  - [Perl modules](#Perl-modules)
-- [Installation](#Installation)
-  - [Ubuntu / Debian](#ubuntu--debian)
-  - [MacOS](#MacOS)
-  - [Windows](#Windows)
-  - [Docker](#Docker)
-- [Usage](#Usage)
-- [Frequently Asked Questions (FAQ)](#FAQ)
-- [Contribute](#Contribute)
-- [License](#License)
 
 ## Requirements
 ### Environment
@@ -115,7 +100,7 @@ docker run --init --rm -v ${PWD}:/root/ --name yamusic yandex-music-downloader:1
 
 ## Usage
 ```bat
-Yandex Music Downloader v1.4
+Yandex Music Downloader v1.5
 
 ya.pl [-adhklpstu] [long options...]
         -p[=INT] --playlist[=INT]  playlist id to download
@@ -171,7 +156,7 @@ ya.pl [-adhklpstu] [long options...]
         ya.pl -u
         https://music.yandex.ru/users/ya.playlist/playlists/1257 --cookie ...
 
-        © 2013-2022 by Kaimi (https://kaimi.io)
+        © 2013-2023 by Kaimi (https://kaimi.io)
 ```
 
 ## FAQ
