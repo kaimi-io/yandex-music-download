@@ -50,6 +50,11 @@ git clone https://github.com/kaimi-io/yandex-music-download.git
 cd yandex-music-download/src
 perl ya.pl -h
 ```
+### Nix / NixOS
+```bash
+nix shell github:kaimi-io/yandex-music-download
+ya-music -h
+```
 ### MacOS
 1. Install brew (https://brew.sh/).
 2. Run:
