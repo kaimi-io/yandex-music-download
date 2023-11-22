@@ -5,6 +5,9 @@
 [._]ss[a-gi-z]
 [._]sw[a-p]
 
+# nix build
+result
+
 # Session
 Session.vim
 Sessionx.vim
