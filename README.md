@@ -20,7 +20,7 @@ Origin of the script is the following article: https://kaimi.io/2013/11/yandex-m
   * File::Copy
   * File::Spec
   * File::Temp
-  * File::Util
+  * [File::Util](https://github.com/tommybutler/file-util)
   * Getopt::Long::Descriptive
   * HTML::Entities
   * HTTP::Cookies
