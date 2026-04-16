@@ -293,6 +293,18 @@ my $ua = LWP::UserAgent->new
 	send_te => 0
 );
 
+my $download_ua = LWP::UserAgent->new
+(
+	agent => $opt{mobile} ? MOBILE_AGENT : AGENT,
+	timeout => TIMEOUT,
+	ssl_opts =>
+	{
+		verify_hostname => $opt{debug} ? 0 : 1,
+		SSL_verify_mode => $opt{debug} ? IO::Socket::SSL->SSL_VERIFY_NONE : IO::Socket::SSL->SSL_VERIFY_PEER,
+	},
+	send_te => 0
+);
+
 # Fix auth token and cookie format if required
 my $auth_token = '';
 if($opt{mobile} && $opt{auth})
@@ -309,11 +321,11 @@ if($opt{mobile} && $opt{auth})
 my $cookie = '';
 if(!$opt{mobile} && $opt{cookie})
 {
-	if($opt{cookie} !~ /${\(COOKIE_PREFIX)}/i)
+	$cookie = normalize_cookie($opt{cookie});
+	if(!$cookie)
 	{
-		$cookie = COOKIE_PREFIX;
+		exit(1);
 	}
-	$cookie .= $opt{cookie};
 
 	$ua->default_header(Cookie => $cookie);
 }
@@ -332,6 +344,7 @@ if($opt{debug})
 if($opt{proxy})
 {
 	$ua->proxy(['http', 'https'], 'http://' . $opt{proxy} . '/');
+	$download_ua->proxy(['http', 'https'], 'http://' . $opt{proxy} . '/');
 }
 
 if($opt{exclude})
@@ -580,7 +593,7 @@ sub download_track
 {
 	my ($url) = @_;
 
-	my $request = $ua->head($url);
+	my $request = $download_ua->head($url);
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
@@ -593,7 +606,7 @@ sub download_track
 
 	info(DEBUG, 'File size from header: ' . $total_size);
 
-	$request = $ua->get($url, ':content_cb' => \&progress);
+	$request = $download_ua->get($url, ':content_cb' => \&progress);
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
@@ -703,7 +716,7 @@ sub get_track_url
 	}
 
 	$url = 'https:' . $url unless $url =~ /^https:/;
-	$request = $ua->get($url);
+	$request = $download_ua->get($url);
 	if(!$request->is_success)
 	{
 		info(DEBUG, 'Request failed');
@@ -1323,6 +1336,35 @@ sub read_file
 	return;
 }
 
+sub normalize_cookie
+{
+	my $cookie = shift;
+	my $cookie_prefix = COOKIE_PREFIX;
+	return if !defined $cookie;
+
+	$cookie =~ s/^\s+|\s+$//g;
+	return if !$cookie;
+
+	if($cookie =~ /^\Q$cookie_prefix\E[^;\s]+$/i)
+	{
+		return $cookie;
+	}
+
+	if($cookie !~ /[=;]/)
+	{
+		return COOKIE_PREFIX . $cookie;
+	}
+
+	if($cookie =~ /(?:^|;\s*)\Q$cookie_prefix\E([^;\s]+)/i)
+	{
+		return $cookie_prefix . $1;
+	}
+
+	info(ERROR, 'Failed to find Session_id in provided cookie string');
+
+	return;
+}
+
 sub log_response
 {
 	my $response = shift;
@@ -1348,6 +1390,6 @@ sub print_debug_info
 	info(DEBUG, 'Yandex Music Downloader v' . VERSION . NL . NL);
 	info(DEBUG, 'OS: ' . $^O . '; Path: ' . $^X . '; Version: ' . $^V);
 	
-	info(DEBUG,  'Cookie: ' . $opt{cookie}) if $opt{cookie};
-	info(DEBUG,  'Auth: ' . $opt{auth}) if $opt{auth};
+	info(DEBUG, 'Cookie: <provided>') if $opt{cookie};
+	info(DEBUG, 'Auth: <provided>') if $opt{auth};
 }
