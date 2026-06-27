@@ -293,17 +293,8 @@ my $ua = LWP::UserAgent->new
 	send_te => 0
 );
 
-my $download_ua = LWP::UserAgent->new
-(
-	agent => $opt{mobile} ? MOBILE_AGENT : AGENT,
-	timeout => TIMEOUT,
-	ssl_opts =>
-	{
-		verify_hostname => $opt{debug} ? 0 : 1,
-		SSL_verify_mode => $opt{debug} ? IO::Socket::SSL->SSL_VERIFY_NONE : IO::Socket::SSL->SSL_VERIFY_PEER,
-	},
-	send_te => 0
-);
+my $download_ua = $ua->clone;
+$download_ua->default_headers->remove_header('X_Retpath_Y');
 
 # Fix auth token and cookie format if required
 my $auth_token = '';
@@ -324,6 +315,7 @@ if(!$opt{mobile} && $opt{cookie})
 	$cookie = normalize_cookie($opt{cookie});
 	if(!$cookie)
 	{
+		info(ERROR, 'Failed to find Session_id in provided cookie string');
 		exit(1);
 	}
 
@@ -1339,13 +1331,12 @@ sub read_file
 sub normalize_cookie
 {
 	my $cookie = shift;
-	my $cookie_prefix = COOKIE_PREFIX;
 	return if !defined $cookie;
 
 	$cookie =~ s/^\s+|\s+$//g;
 	return if !$cookie;
 
-	if($cookie =~ /^\Q$cookie_prefix\E[^;\s]+$/i)
+	if($cookie =~ /^\Q${\(COOKIE_PREFIX)}\E[^;\s]+$/i)
 	{
 		return $cookie;
 	}
@@ -1355,12 +1346,10 @@ sub normalize_cookie
 		return COOKIE_PREFIX . $cookie;
 	}
 
-	if($cookie =~ /(?:^|;\s*)\Q$cookie_prefix\E([^;\s]+)/i)
+	if($cookie =~ /(?:^|;\s*)\Q${\(COOKIE_PREFIX)}\E([^;\s]+)/i)
 	{
-		return $cookie_prefix . $1;
+		return COOKIE_PREFIX . $1;
 	}
-
-	info(ERROR, 'Failed to find Session_id in provided cookie string');
 
 	return;
 }
